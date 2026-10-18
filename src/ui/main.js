@@ -4,7 +4,7 @@ import { SPELLS, spellsOf, spellCd, spellFreq } from '../core/spells.js';
 import { newRun, act, chooseDraft, rerollDraft, chooseRelic, choosePath, healBetween } from '../core/game.js';
 import { newMeta, applyRun, buy, grimoireFor, nextGoals, GRIMOIRE_COSTS, RELIC_COST } from '../core/meta.js';
 import { key, tile, spikesUp } from '../core/engine.js';
-import { intentTiles, dangerMap } from '../core/ai.js';
+import { dangerTiles, dangerMap } from '../core/ai.js';
 import { Renderer, SLOT_COLORS } from './render.js';
 import { preloadAll, sprite, spellIcon, iconCanvas, genImage } from './sprites.js';
 import { sfx, isMuted, setMuted } from './audio.js';
@@ -362,14 +362,14 @@ function describe(t) {
   if (tt === T.SPIKES) parts.push(`<b>Spikes</b>Alternate every turn. ${spikesUp(g, x, y, g.turn + 1) ? '<span class="warn">Up at the end of this turn: 1 damage.</span>' : 'Down at the end of this turn: safe.'}`);
   if (tt === T.ICE) parts.push('<b>Ice</b>You slide until something stops you — casting every spell you slide over.');
   if (tt === T.LAVA) parts.push('<b>Lava</b>2 damage when entered. Enemies avoid it — push them in.');
-  if (g.fx.slime[k]) parts.push('<b>Slime</b>Stepping in roots you for a turn.');
+  if (g.fx.slime[k]) parts.push('<b>Slime</b>The spell here fizzles if you step on it.');
   if (g.fx.burn[k]) parts.push(`<b>Burning</b>1 damage at end of turn to anyone standing here (${g.fx.burn[k]} turns).`);
   if (g.fx.wall[k]) parts.push(`<b>Temporary wall</b>Crumbles in ${g.fx.wall[k]} turns.`);
   if (g.fx.corpse[k]) parts.push('<b>Remains</b>Fuel for the Hexer.');
   if (g.fx.trap[k]) parts.push('<b>Your trap</b>Enemies stepping here are hurt and rooted.');
   if (g.doomMark && g.doomMark[0] === x && g.doomMark[1] === y) parts.push('<b>The Dark</b><span class="warn">A shade will emerge here.</span>');
   if (g.emerge && g.emerge[0] === x && g.emerge[1] === y) parts.push('<b>Emerging enemy</b><span class="warn">An enemy crawls out here at the end of this turn. Stand on it (taking 1 damage) or shove an enemy onto it to block it.</span>');
-  const threats = g.units.filter((v) => v.team === 'enemy' && v.intent && intentTiles(g, v).slice(v.intent.kind === 'line' || v.intent.kind === 'charge' ? -1 : 0).some(([a, c]) => a === x && c === y));
+  const threats = g.units.filter((v) => v.team === 'enemy' && v.intent && dangerTiles(g, v).some(([a, c]) => a === x && c === y));
   if (threats.length) parts.push(`<span class="warn">Targeted by: ${threats.map((v) => `${ENEMIES[v.type].name} (${v.intent.dmg} dmg${v.intent.delay > 1 ? `, in ${v.intent.delay} turns` : ''})`).join(', ')}</span>`);
   showInfo(parts.join('<br>') || '<span class="k">Floor.</span>');
 }
@@ -576,6 +576,8 @@ function helpModal() {
     <li><b>The whole floor is your deck.</b> Every tile holds one of your spells (coloured frame = which deck slot). <b>Each step casts the tile you step onto, in the direction you stepped.</b></li>
     <li>A used tile <b>recharges in place</b> (faded icon + countdown). Spent tiles are safe, silent steps.</li>
     <li>There is <b>no melee</b> — you cannot walk into enemies. Every kill is a spell, so plan your path and your approach angle.</li>
+    <li><b>Waiting</b> re-casts the tile you stand on (once it has recharged), in the direction you last moved.</li>
+    <li>Enemies <b>emerge</b> from rumbling orange rings; the <b>Dark</b> sends shades if you dawdle past par. Shades fade once the real enemies are gone.</li>
     <li><b>Enemies telegraph.</b> Each enemy marks the square(s) it will strike (red crosshair + damage) and attacks on its next turn — hitting <b>whoever</b> stands there, even other enemies. Dodge, kill it, push it so the attack lands elsewhere, or <b>stun it to cancel</b>. Hover an enemy to see its reach (yellow).</li>
     <li>Clear every enemy to finish the floor, then draft new spells. Be quick: after the <b>par</b> turn count, the Dark spawns shades.</li>
     <li>Earn <span class="ember">Embers</span> to unlock spells, relics and blessings in the Sanctum. Achievements unlock new heroes.</li></ul>

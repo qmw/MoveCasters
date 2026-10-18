@@ -52,16 +52,23 @@ const inReach = (g, u, tx, ty) => reachOf(g, u).some(([x, y]) => x === tx && y =
 // Back-compat alias used by older tools.
 export const threatOf = reachOf;
 
-// Walk a line from (x,y): returns tiles up to and including the first unit or hero.
-function lineTiles(g, x, y, dx, dy, range) {
+// Walk a line from (x,y): returns tiles up to and including the first unit (or hero, unless ignoreHero).
+function lineTiles(g, x, y, dx, dy, range, ignoreHero = false) {
   const out = [];
   for (let i = 1; i <= range; i++) {
     const nx = x + dx * i, ny = y + dy * i;
     if (!inb(g, nx, ny) || isWall(g, nx, ny)) break;
     out.push([nx, ny]);
-    if (unitAt(g, nx, ny) || heroAt(g, nx, ny)) break;
+    if (unitAt(g, nx, ny) || (!ignoreHero && heroAt(g, nx, ny))) break;
   }
   return out;
+}
+// Squares where the hero would be hit if he ends his move there (line/charge: anywhere along the firing line).
+export function dangerTiles(g, u) {
+  const it = u.intent;
+  if (!it) return [];
+  if (it.kind === 'line' || it.kind === 'charge') return lineTiles(g, u.x, u.y, it.dir[0], it.dir[1], it.range + (it.kind === 'charge' ? 1 : 0), true);
+  return intentTiles(g, u);
 }
 
 // Absolute squares the current telegraph will strike (recomputed live: relative intents follow the attacker).
@@ -81,9 +88,7 @@ export function dangerMap(g) {
   const m = {};
   for (const u of enemies(g)) {
     if (!u.intent || u.intent.delay > 1) continue;
-    const tiles = intentTiles(g, u);
-    const hitTiles = u.intent.kind === 'line' || u.intent.kind === 'charge' ? tiles.slice(-1) : tiles;
-    for (const [x, y] of hitTiles) m[key(x, y)] = (m[key(x, y)] || 0) + u.intent.dmg;
+    for (const [x, y] of dangerTiles(g, u)) m[key(x, y)] = (m[key(x, y)] || 0) + u.intent.dmg;
   }
   if (g.emerge) { const k = key(g.emerge[0], g.emerge[1]); m[k] = (m[k] || 0) + 1; }
   return m;
@@ -93,11 +98,10 @@ export function intentMap(g) {
   const m = {};
   for (const u of enemies(g)) {
     if (!u.intent) continue;
-    const tiles = intentTiles(g, u);
-    const isLine = u.intent.kind === 'line' || u.intent.kind === 'charge';
-    tiles.forEach(([x, y], i) => {
+    const tiles = dangerTiles(g, u);
+    tiles.forEach(([x, y]) => {
       const k = key(x, y);
-      const path = isLine && i < tiles.length - 1;
+      const path = false;
       const prev = m[k];
       if (!prev || (prev.path && !path)) m[k] = { dmg: (prev && !prev.path ? prev.dmg : 0) + (path ? 0 : u.intent.dmg), delay: u.intent.delay, path, from: u.id };
       else if (!path) prev.dmg += u.intent.dmg;

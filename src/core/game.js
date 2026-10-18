@@ -51,6 +51,7 @@ function castCell(g, cell, dx, dy, depthN) {
   g.echoUsed = true;
   const c = { dx, dy, P, lv: d.lv, moveHero: (x, y, mdx, mdy) => enterTile(g, x, y, mdx, mdy, depthN + 1, true) };
   for (let i = 0; i < times && g.phase === 'play'; i++) S.cast(g, c);
+  h.block = Math.min(h.block, 3);
 }
 
 function enterTile(g, x, y, dx, dy, depthN = 0, dash = false) {
@@ -60,14 +61,17 @@ function enterTile(g, x, y, dx, dy, depthN = 0, dash = false) {
   emit(g, { t: 'heromove', from, to: [x, y], dash });
   const t = tile(g, x, y);
   if (t === T.LAVA) hurtHero(g, 2, null, 'lava');
-  if (g.fx.slime[key(x, y)] && g.cls !== 'hexer') { h.root = 1; emit(g, { t: 'text', x, y, s: 'STUCK', c: '#7dff6b' }); }
+  h.lastDir = [dx, dy];
+  const slimed = g.fx.slime[key(x, y)] && g.cls !== 'hexer';
+  if (slimed && cellReady(g, x, y)) emit(g, { t: 'text', x, y, s: 'FIZZLE', c: '#7dff6b' });
   if (g.cls === 'hexer' && g.fx.corpse[key(x, y)] && !h.harvested && h.hp < h.maxHp) {
     delete g.fx.corpse[key(x, y)];
     h.harvested = true;
     healHero(g, 1);
   }
   if (g.phase !== 'play') return;
-  if (cellReady(g, x, y) && (depthN < 3 || (tile(g, x, y) === T.ICE && depthN < 30))) castCell(g, cellAt(g, x, y), dx, dy, depthN);
+  if (g.cls === 'ranger' && depthN === 0 && !cellReady(g, x, y)) h.aim = 1;
+  if (!slimed && cellReady(g, x, y) && (depthN < 3 || (tile(g, x, y) === T.ICE && depthN < 30))) castCell(g, cellAt(g, x, y), dx, dy, depthN);
   // sliding on ice: keep going while we are on ice and nothing moved us
   if (g.phase === 'play' && h.x === x && h.y === y && tile(g, x, y) === T.ICE && depthN < 30) {
     const nx = x + dx, ny = y + dy;
@@ -103,6 +107,9 @@ export function act(g, action, opts = {}) {
     }
   } else {
     if (h.root > 0) h.root--;
+    // waiting channels the (recharged) tile you stand on, in the direction you last moved
+    const [ldx, ldy] = h.lastDir || [0, -1];
+    if (BALANCE.waitCast && cellReady(g, h.x, h.y)) castCell(g, cellAt(g, h.x, h.y), ldx, ldy, 0);
     if (g.cls === 'ranger') h.aim = 1;
   }
   g.stats.turns++;
@@ -170,7 +177,7 @@ function upkeep(g) {
       emit(g, { t: 'spawn', id: u.id, x, y });
     }
   }
-  if (g.reinfLeft > 0 && g.floorTurns % BALANCE.reinfEvery === 1 % BALANCE.reinfEvery && enemies(g).length) {
+  if (g.reinfLeft > 0 && g.floorTurns % BALANCE.reinfEvery === 1 % BALANCE.reinfEvery && enemies(g).some((u) => u.type !== 'shade')) {
     const p = randomFree(g, { avoidHero: 3 });
     if (p) g.emerge = p;
   }
@@ -192,7 +199,13 @@ function upkeep(g) {
 function checkEnd(g) {
   if (g.phase === 'dead') { finishRun(g, false); return true; }
   if (g.phase !== 'play') return true;
-  if (enemies(g).length === 0) { floorCleared(g); return true; }
+  if (!enemies(g).some((u) => u.type !== 'shade') && !g.emerge) {
+    // the Dark recedes with the last real foe
+    for (const u of enemies(g)) { emit(g, { t: 'death', id: u.id, x: u.x, y: u.y, type: u.type }); }
+    g.units = g.units.filter((u) => u.team !== 'enemy');
+    floorCleared(g);
+    return true;
+  }
   return false;
 }
 

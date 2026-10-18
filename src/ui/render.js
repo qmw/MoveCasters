@@ -263,7 +263,7 @@ export class Renderer {
       for (const u of g.units) {
         if (u.team !== 'enemy' || !u.intent || u.intent.kind === 'area') continue;
         const tl = intentTiles(g, u);
-        const end = tl[tl.length - 1];
+        const end = u.intent.kind === 'rel' ? [u.x + u.intent.offs[0][0], u.y + u.intent.offs[0][1]] : tl[tl.length - 1];
         if (!end) continue;
         ctx.strokeStyle = 'rgba(255,90,90,0.75)'; ctx.lineWidth = Math.max(2, ts / 16); ctx.setLineDash([5, 4]);
         ctx.beginPath(); ctx.moveTo(X(u.x) + ts / 2, Y(u.y) + ts / 2); ctx.lineTo(X(end[0]) + ts / 2, Y(end[1]) + ts / 2); ctx.stroke(); ctx.setLineDash([]);

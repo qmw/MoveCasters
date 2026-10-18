@@ -91,11 +91,13 @@ export function buildFloor(g) {
     u.timer = 0;
   }
   let budget = boss ? 1 + floor * 0.15 : (2.6 + floor * 0.55) * (BALANCE.budMul + BALANCE.budSlope * floor) * (biome === 'warrens' ? 0.8 : 1) * (biome === 'frozen' ? 1.2 : 1);
+  const biomeEntry = inBiome === 1 && floor > 1; // breathe when entering a new biome
+  if (biomeEntry) budget *= 0.75;
   if (d >= 1) budget += 1;
   const roster = B.roster.filter(([, min]) => min <= inBiome).map(([t]) => t);
   if (d >= 6 && !roster.includes('goblin')) { const s = spots(); if (s.length) { const p = pick(g, s); makeUnit(g, 'goblin', p[0], p[1]); } }
   let guard = 0;
-  const cap = boss ? 6 : Math.round(BALANCE.capBase + floor * BALANCE.capSlope);
+  const cap = boss ? 6 : Math.round((BALANCE.capBase + floor * BALANCE.capSlope) * (biomeEntry ? 0.8 : 1));
   while (budget > 0.6 && guard++ < 40 && g.units.length < cap) {
     const type = pick(g, roster);
     const cost = ENEMIES[type].cost;

@@ -26,7 +26,8 @@ Death or victory → Embers awarded → Sanctum (meta-unlocks) → new run
 - **Floor layout**: at floor start every tile is assigned one of your deck's spells, weighted by the spell's
   *frequency* (basic spells are common, big spells rare; every deck spell appears at least twice). Each deck slot has
   its own colour so you can read the floor at a glance.
-- **Hero phase** – move 1 tile up/down/left/right, or **wait** (casts nothing).
+- **Hero phase** – move 1 tile up/down/left/right, or **wait**: waiting re-casts the tile you stand on (if it has
+  recharged) in the direction you last moved. Block caps at 3.
   - Moving onto a *ready* tile **casts** its spell in the movement direction; that tile then **recharges in place**
     for the spell's cooldown (a faded icon with a countdown). Spent tiles can be walked over freely — they are your "quiet" moves.
   - You cannot move into enemies (there is no bump attack). All damage comes from spells.
@@ -54,18 +55,19 @@ Goblins **spoil** every tile they walk over (it goes on a 4-turn recharge).
 ### Doom clock
 
 Each floor has a **par** (`12 + 2 x enemies` turns). There is **no healing between floors** (Blessing *Second Wind* adds 1; skipping a draft heals 1; bosses heal 2). Clear before par → **Swift** (+1 Ember, +1 draft option).
-Take no damage → **Flawless** (+1 Ember). After par, **the Dark rises**: every 4 turns a shade spawns on a telegraphed tile.
+Take no damage → **Flawless** (+1 Ember). After par, **the Dark rises**: every 4 turns a shade spawns on a telegraphed tile. Shades fade when the last real enemy dies.
+The first floor of each new biome has 25% fewer enemies (breather).
 
 ## 4. Hero classes (each has a completely different spell list)
 
 | Class | Sprite | HP | Passive | Unlock |
 |---|---|---|---|---|
 | **Knight** (ranged) | knight_m | 7 | *Steel*: first hit each floor is blocked | Start |
-| **Pyromancer** | wizzard_m | 5 | *Kindling*: spell kills set the ground ablaze; immune to fire | Reach floor 4 |
-| **Ranger** | elf_f | 6 | *Steady Aim*: after waiting, your next spell deals +1 | Kill 60 enemies (total) |
-| **Geomancer** | dwarf_m | 6 | *Stoneblood*: knocking an enemy into a wall/enemy deals +1 | Defeat the Crypt boss |
+| **Pyromancer** | wizzard_m | 4 | *Kindling*: spell kills set the ground ablaze; immune to fire | Reach floor 4 |
+| **Ranger** | elf_f | 9 | *Steady Aim*: after waiting, your next spell deals +1 | Kill 60 enemies (total) |
+| **Geomancer** | dwarf_m | 7 | *Stoneblood*: knocking an enemy into a wall/enemy deals +1 | Defeat the Crypt boss |
 | **Shadowblade** | lizard_m | 5 | *Backstab*: spells deal +2 to stunned or rooted enemies | Clear a floor without taking damage |
-| **Hexer** | wizzard_f | 6 | *Harvest*: kills leave corpses; stepping on one heals 1 (once per floor) | Defeat the Orc Warlord |
+| **Hexer** | wizzard_f | 5 | *Harvest*: kills leave corpses; stepping on one heals 1 (once per floor) | Defeat the Orc Warlord |
 
 Each class has 12 spells: 4 starters (including one common *basic* spell), 4 base draftable, 4 locked behind **Grimoire** meta-unlocks.
 Every spell has a cooldown and a floor frequency (1 = rare, 3 = common).
@@ -73,9 +75,9 @@ Spell list with exact numbers lives in `src/core/spells.js` (the single source o
 
 - **Knight** (ranged: thrown shields, lances, holy light) – Shield Throw, Smite, Lance, Bulwark | Charge, Holy Nova, Javelin Volley, Rally | Taunt, Riposte, Judgement, Execute
 - **Pyromancer** – Firebolt, Flame Wave, Fire Ring, Heat Shield | Meteor, Inferno Line, Blink Flare, Combustion | Cinder Storm, Magma Wall, Phoenix Feather, Pyroclasm
-- **Ranger** – Arrow, Vault, Bear Trap, Piercing Shot | Volley, Hawk, Snare Net, Windstep | Ricochet, Rain of Arrows, Smoke Bomb, Mark Prey
-- **Geomancer** – Boulder, Stone Fist, Raise Wall, Stone Skin | Quake, Tremor, Earth Spike, Sinkhole | Landslide, Geode, Fissure, Tectonic Shift
-- **Shadowblade** – Shuriken, Shadowstep, Swap, Smoke | Fan of Knives, Poison Edge, Caltrops, Decoy | Assassinate, Garrote, Mirror Step, Death Mark
+- **Ranger** – Arrow, Hawk, Volley, Piercing Shot | Vault, Bear Trap, Snare Net, Windstep | Ricochet, Rain of Arrows, Smoke Bomb, Mark Prey
+- **Geomancer** – Boulder, Stone Fist, Earth Spike, Tremor | Quake, Raise Wall, Stone Skin, Sinkhole | Landslide, Geode, Fissure, Tectonic Shift
+- **Shadowblade** – Shuriken, Shadowstep, Swap, Fan of Knives | Smoke, Poison Edge, Caltrops, Decoy | Assassinate, Garrote, Mirror Step, Death Mark
 - **Hexer** – Bone Spear, Life Drain, Raise Dead, Curse | Corpse Explosion, Bone Wall, Soul Swap, Wither | Grave Grasp, Dark Pact, Plague, Lich Form
 
 ## 5. Enemies — chess pieces with teeth

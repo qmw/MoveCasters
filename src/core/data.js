@@ -29,22 +29,22 @@ export const CLASSES = {
     starters: ['firebolt', 'flame_wave', 'fire_ring', 'heat_shield'],
   },
   ranger: {
-    name: 'Ranger', sprite: 'elf_f', hp: 8, color: '#8fd16a',
-    passive: 'Steady Aim — after waiting, your next spell deals +1.',
+    name: 'Ranger', sprite: 'elf_f', hp: 9, color: '#8fd16a',
+    passive: 'Steady Aim — after waiting or a quiet step (over a recharging tile), your next spell deals +1.',
     unlock: { kind: 'kills', n: 60, text: 'Slay 60 enemies (all runs)' },
-    starters: ['arrow', 'hawk', 'bear_trap', 'piercing_shot'],
+    starters: ['arrow', 'hawk', 'volley', 'piercing_shot'],
   },
   geo: {
     name: 'Geomancer', sprite: 'dwarf_m', hp: 7, color: '#c8a26b',
     passive: 'Stoneblood — enemies you knock into walls or foes take +1.',
     unlock: { kind: 'boss', id: 'bone_tyrant', text: 'Defeat the Bone Tyrant' },
-    starters: ['boulder', 'stone_fist', 'earth_spike', 'stone_skin'],
+    starters: ['boulder', 'stone_fist', 'earth_spike', 'tremor'],
   },
   shadow: {
     name: 'Shadowblade', sprite: 'lizard_m', hp: 5, color: '#b18cff',
     passive: 'Backstab — your spells deal +2 to stunned or rooted enemies.',
     unlock: { kind: 'perfectFloor', text: 'Clear a floor without taking damage' },
-    starters: ['shuriken', 'shadowstep', 'swap', 'smoke'],
+    starters: ['shuriken', 'shadowstep', 'swap', 'fan_of_knives'],
   },
   hexer: {
     name: 'Hexer', sprite: 'wizzard_f', hp: 5, color: '#7de0c8',
@@ -66,7 +66,7 @@ export const ENEMIES = {
   caster: { name: 'Bone Caster', sprite: 'necromancer', hp: 2, dmg: 1, pattern: 'line', range: 4, move: 'orth', ranged: true, cost: 1.8,
     desc: 'Fires bolts along rows and columns (range 4). Walls and bodies block.' },
   slug: { name: 'Slug', sprite: 'slug', hp: 3, dmg: 1, pattern: 'orth1', move: 'orth', slime: true, cost: 1.4,
-    desc: 'Leaves slime. Stepping in slime roots you for a turn.' },
+    desc: 'Leaves slime. Spells on slimed tiles fizzle when you step on them.' },
   spitter: { name: 'Spitter', sprite: 'swampy', hp: 2, dmg: 1, pattern: 'lob2', move: 'orth', ranged: true, cost: 1.8,
     desc: 'Lobs acid at squares exactly 2 away (orthogonal), over obstacles.' },
   mudling: { name: 'Mudling', sprite: 'muddy', hp: 3, dmg: 1, pattern: 'orth1', move: 'orth', split: true, cost: 2.3,
@@ -162,10 +162,11 @@ export const DEPTH_MODS = [
 
 // Tuning knobs (overridable in tools/sim.js with --set BALANCE.x=y)
 export const BALANCE = {
-  capBase: 3, capSlope: 1.2, // max starting enemies = capBase + capSlope * floor
+  capBase: 4, capSlope: 1.3, // max starting enemies = capBase + capSlope * floor
   budMul: 1.6, budSlope: 0.3, // budget multiplier = budMul + budSlope * floor
-  reinfBase: 2, reinfEvery: 2, reinfSlope: 0.5, // reinforcements per floor = reinfBase + reinfSlope * floor
-  bossHpMul: 1.5, eliteChance: 0.3, // HP multiplier for bosses; chance an enemy is elite (+1 HP) at depth 0
+  reinfBase: 3, reinfEvery: 2, reinfSlope: 0.6, // reinforcements per floor = reinfBase + reinfSlope * floor
+  waitCast: 1, // 1 = waiting re-casts your recharged tile
+  bossHpMul: 1.5, eliteChance: 0.4, // HP multiplier for bosses; chance an enemy is elite (+1 HP) at depth 0
 };
 
 export const FLOORS_PER_BIOME = 3;

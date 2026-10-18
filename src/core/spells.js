@@ -42,8 +42,12 @@ function placeTempWall(g, x, y, turns) {
 export const SPELLS = {
   // ======================= KNIGHT (ranged) =======================
   shield_throw: { cls: 'knight', tier: 's', name: 'Shield Throw', cd: 1, freq: 3, icon: 'weapon_knight_sword',
-    desc: 'The first enemy in a line (range 5) takes 1 and is knocked back 1.',
-    cast(g, c) { const u = shootFirst(g, c, 5, 1 + c.P, '#c9d4e8'); if (u && u.hp > 0) pushUnit(g, u, c.dx, c.dy, 1); } },
+    desc: 'Boomerang: the first enemy ahead (range 5) takes 1 and is knocked back 1 (slamming into things hurts); on the way back it hits the first enemy behind you for 1.',
+    cast(g, c) {
+      const u = shootFirst(g, c, 5, 1 + c.P, '#c9d4e8');
+      if (u && u.hp > 0) pushUnit(g, u, c.dx, c.dy, 1);
+      shootFirst(g, { ...c, dx: -c.dx, dy: -c.dy }, 5, 1 + c.P, '#c9d4e8');
+    } },
   smite: { cls: 'knight', tier: 's', name: 'Smite', cd: 3, icon: 'weapon_golden_sword',
     desc: 'The first enemy in a line takes 2 and is stunned (its attack is cancelled).',
     cast(g, c) { const u = shootFirst(g, c, 99, 2 + c.P, '#fff3a0'); if (u && u.hp > 0) u.stun = Math.max(u.stun, 1); } },
@@ -51,7 +55,7 @@ export const SPELLS = {
     desc: 'Pierce: every enemy in a line (range 4) takes 2.',
     cast(g, c) { pierce(g, c, 4, 2 + c.P, '#e8e8e8'); } },
   bulwark: { cls: 'knight', tier: 's', name: 'Bulwark', cd: 5, icon: 'weapon_knight_sword',
-    desc: 'Gain 2 Block (absorbs damage this floor).',
+    desc: 'Gain 2 Block (absorbs damage this floor; Block caps at 3).',
     cast(g, c) { H(g).block += 2 + c.lv; emit(g, { t: 'text', x: H(g).x, y: H(g).y, s: '+BLOCK', c: '#8ecbff' }); } },
   charge: { cls: 'knight', tier: 'b', name: 'Charge', cd: 4, icon: 'weapon_spear',
     desc: 'Dash forward up to 4 squares. If you slam into an enemy: 2 damage and stun it.',
@@ -142,7 +146,7 @@ export const SPELLS = {
       aoe(g, ok, '#ff8a3d');
       ok.forEach(([x, y]) => { ignite(g, x, y); hit(g, enemyAt(g, x, y), 1 + c.P); });
     } },
-  fire_ring: { cls: 'pyro', tier: 's', name: 'Fire Ring', cd: 6, icon: 'floor_spikes_anim',
+  fire_ring: { cls: 'pyro', tier: 's', name: 'Fire Ring', cd: 6, freq: 1, icon: 'floor_spikes_anim',
     desc: 'All 8 surrounding squares: 1 damage and set ablaze.',
     cast(g, c) {
       const h = H(g), tiles = around8(h.x, h.y).filter(([x, y]) => inb(g, x, y) && !isWall(g, x, y));
@@ -243,7 +247,7 @@ export const SPELLS = {
       if (tx !== h.x || ty !== h.y) c.moveHero(tx, ty, -c.dx, -c.dy, false);
       shootFirst(g, c, 99, 1 + c.P, '#d9f0a3');
     } },
-  bear_trap: { cls: 'ranger', tier: 's', name: 'Bear Trap', cd: 4, icon: 'weapon_saw_sword',
+  bear_trap: { cls: 'ranger', tier: 'b', name: 'Bear Trap', cd: 4, icon: 'weapon_saw_sword',
     desc: 'Set a trap on the square ahead: 2 damage and rooted 2 turns. If an enemy is there, it is also stunned.',
     cast(g, c) {
       const h = H(g), x = h.x + c.dx, y = h.y + c.dy;
@@ -258,7 +262,7 @@ export const SPELLS = {
       const { us } = pierce(g, c, 99, 1 + c.P, '#d9f0a3');
       if (us[0] && us[0].hp > 0) hit(g, us[0], 1);
     } },
-  volley: { cls: 'ranger', tier: 'b', name: 'Volley', cd: 5, icon: 'weapon_throwing_axe',
+  volley: { cls: 'ranger', tier: 's', name: 'Volley', cd: 5, icon: 'weapon_throwing_axe',
     desc: 'Three parallel arrows (ahead and to each side): first enemy in each takes 2.',
     cast(g, c) {
       const h = H(g);
@@ -352,7 +356,7 @@ export const SPELLS = {
       }
       aoe(g, tiles, '#c8a26b');
     } },
-  stone_skin: { cls: 'geo', tier: 's', name: 'Stone Skin', cd: 5, icon: 'column',
+  stone_skin: { cls: 'geo', tier: 'b', name: 'Stone Skin', cd: 5, icon: 'column',
     desc: 'Gain 2 Block.',
     cast(g, c) { H(g).block += 2 + c.lv; emit(g, { t: 'text', x: H(g).x, y: H(g).y, s: '+BLOCK', c: '#c8a26b' }); } },
   quake: { cls: 'geo', tier: 'b', name: 'Quake', cd: 6, icon: 'weapon_big_hammer',
@@ -363,11 +367,11 @@ export const SPELLS = {
       aoe(g, tiles, '#c8a26b');
       tiles.forEach(([x, y]) => { const u = enemyAt(g, x, y); if (u) { hit(g, u, 1 + c.P); if (u.hp > 0) u.stun = Math.max(u.stun, 1); } });
     } },
-  tremor: { cls: 'geo', tier: 'b', name: 'Tremor', cd: 3, icon: 'floor_ladder',
-    desc: 'Push every adjacent enemy (incl. diagonal) 2 squares away.',
+  tremor: { cls: 'geo', tier: 's', name: 'Tremor', cd: 3, icon: 'floor_ladder',
+    desc: 'Push every adjacent enemy (incl. diagonal) 1 square away (collisions hurt).',
     cast(g, c) {
       const h = H(g); aoe(g, around8(h.x, h.y), '#c8a26b');
-      KING.forEach(([dx, dy]) => { const u = enemyAt(g, h.x + dx, h.y + dy); if (u) pushUnit(g, u, dx, dy, 2 + c.lv); });
+      KING.forEach(([dx, dy]) => { const u = enemyAt(g, h.x + dx, h.y + dy); if (u) pushUnit(g, u, dx, dy, 1 + c.lv); });
     } },
   earth_spike: { cls: 'geo', tier: 's', name: 'Earth Spike', cd: 3, icon: 'floor_spikes_anim',
     desc: 'The nearest enemy within 4 takes 2.',
@@ -429,7 +433,7 @@ export const SPELLS = {
       if (standable(g, bx, by) && !occupied(g, bx, by) && tile(g, bx, by) !== T.LAVA) c.moveHero(bx, by, c.dx, c.dy, true);
     } },
   swap: { cls: 'shadow', tier: 's', name: 'Swap', cd: 3, icon: 'doors_leaf_open',
-    desc: 'Swap places with the first enemy in a line. It is stunned and takes 1 (+2 Backstab).',
+    desc: 'Swap places with the first enemy in a line (not bosses). It is stunned and takes 1 (+2 Backstab).',
     cast(g, c) {
       const h = H(g), u = firstEnemyInRay(g, h.x, h.y, c.dx, c.dy);
       if (!u || u.boss) return;
@@ -439,10 +443,10 @@ export const SPELLS = {
       hit(g, u, 1 + c.P);
       c.moveHero(ux, uy, c.dx, c.dy, false);
     } },
-  smoke: { cls: 'shadow', tier: 's', name: 'Smoke', cd: 5, icon: 'wall_fountain_top_1',
-    desc: 'Vanish for 2 turns: enemies cannot attack or track you.',
+  smoke: { cls: 'shadow', tier: 'b', name: 'Smoke', cd: 5, icon: 'wall_fountain_top_1',
+    desc: 'Vanish for 2 turns: enemies cannot target or track you (attacks already telegraphed still land).',
     cast(g, c) { H(g).invis = Math.max(H(g).invis, 2 + c.lv); aoe(g, around8(H(g).x, H(g).y), '#666'); } },
-  fan_of_knives: { cls: 'shadow', tier: 'b', name: 'Fan of Knives', cd: 4, icon: 'weapon_knife',
+  fan_of_knives: { cls: 'shadow', tier: 's', name: 'Fan of Knives', cd: 4, icon: 'weapon_knife',
     desc: 'The first enemy in each of the 4 directions takes 1.',
     cast(g, c) { ORTH.forEach(([dx, dy]) => shootFirst(g, { ...c, dx, dy }, 99, 1 + c.P, '#b18cff')); } },
   poison_edge: { cls: 'shadow', tier: 'b', name: 'Poison Edge', cd: 4, icon: 'flask_green',
@@ -549,7 +553,7 @@ export const SPELLS = {
       aoe(g, tiles, '#e8e0c8');
     } },
   soul_swap: { cls: 'hexer', tier: 'b', name: 'Soul Swap', cd: 4, freq: 1, icon: 'doors_leaf_open',
-    desc: 'Swap places with the farthest enemy; it takes 2.',
+    desc: 'Swap places with the farthest enemy; it takes 1.',
     cast(g, c) {
       const h = H(g);
       const u = enemies(g).filter((v) => !v.boss).sort((a, b) => manhattan(b.x, b.y, h.x, h.y) - manhattan(a.x, a.y, h.x, h.y))[0];
@@ -557,7 +561,7 @@ export const SPELLS = {
       const ox = h.x, oy = h.y, ux = u.x, uy = u.y;
       emit(g, { t: 'move', id: u.id, from: [ux, uy], to: [ox, oy], push: true });
       u.x = ox; u.y = oy;
-      hit(g, u, 2 + c.P);
+      hit(g, u, 1 + c.P);
       c.moveHero(ux, uy, c.dx, c.dy, false);
     } },
   wither: { cls: 'hexer', tier: 'l', name: 'Wither', cd: 6, icon: 'flask_big_green',
