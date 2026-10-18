@@ -2,7 +2,7 @@
 import { T, DIRS, CLASSES, RELICS, TOTAL_FLOORS, FLOORS_PER_BIOME, BIOMES, BALANCE } from './data.js';
 import { rnd, rint, pick, shuffle, hashSeed } from './rng.js';
 import {
-  key, tile, setTile, standable, unitAt, enemies, allies, emit, damageUnit, hurtHero, healHero, spikesUp, manhattan,
+  bountyDone, key, tile, setTile, standable, unitAt, enemies, allies, emit, damageUnit, hurtHero, healHero, spikesUp, manhattan,
   randomFree, makeUnit, occupied, cellAt, cellReady, pushUnit,
 } from './engine.js';
 import { SPELLS, spellsOf, spellCd } from './spells.js';
@@ -46,6 +46,7 @@ function castCell(g, cell, dx, dy, depthN) {
   if (h.aim) { P += 1; h.aim = 0; }
   g.stats.spellsCast++;
   g.floorCasts = (g.floorCasts || 0) + 1;
+  g.turnCasts = (g.turnCasts || 0) + 1;
   emit(g, { t: 'cast', id: d.id, x: h.x, y: h.y, dir: [dx, dy] });
   const times = h.relics.includes('echo_stone') && !g.echoUsed ? 2 : 1;
   g.echoUsed = true;
@@ -84,6 +85,7 @@ export function act(g, action, opts = {}) {
   if (g.phase !== 'play') return false;
   g.events = [];
   g.turnKills = 0;
+  g.turnCasts = 0;
   const h = g.hero;
   if (action !== 'wait') {
     const [dx, dy] = DIRS[action];
@@ -120,6 +122,8 @@ export function act(g, action, opts = {}) {
   }
   g.stats.turns++;
   g.floorTurns++;
+  if (g.turnKills >= 2) bountyDone(g, 'multi');
+  if (g.turnCasts >= 2) bountyDone(g, 'chain');
   if (g.turnKills >= 2) {
     emit(g, { t: 'text', x: h.x, y: h.y - 1, s: ['', '', 'DOUBLE KILL', 'TRIPLE KILL', 'MASSACRE'][Math.min(4, g.turnKills)], c: '#ffcf5a' });
     g.stats.bestMulti = Math.max(g.stats.bestMulti || 0, g.turnKills);
@@ -227,6 +231,7 @@ function floorCleared(g) {
   s.hpByFloor.push(g.hero.hp);
   s.turnsByFloor.push(g.floorTurns);
   g.floorCasts = 0;
+  if (g.floorTurns <= g.par - 5) bountyDone(g, 'quick');
   const flawless = g.floorDmg === 0;
   let e = 1 + (swift ? 1 : 0) + (flawless ? 1 : 0) + (g.isBoss ? 3 : 0) + (g.hero.relics.includes('ember_heart') ? 1 : 0);
   s.embers += e;

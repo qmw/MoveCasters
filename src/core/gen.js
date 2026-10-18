@@ -1,5 +1,5 @@
 // Floor generation: open arena, overlay hazards, enemies, and the spell floor (every tile holds a deck spell).
-import { T, BIOMES, ENEMIES, ORTH, FLOORS_PER_BIOME, BALANCE } from './data.js';
+import { T, BIOMES, ENEMIES, ORTH, FLOORS_PER_BIOME, BALANCE, BOUNTIES } from './data.js';
 import { rnd, rint, pick } from './rng.js';
 import { key, tile, setTile, manhattan, makeUnit, freeTiles } from './engine.js';
 import { spellFreq } from './spells.js';
@@ -125,6 +125,7 @@ export function buildFloor(g) {
   g.hero.lich = 0; g.hero.harvested = false; g.echoUsed = false;
   g.turn = 0;
   // Into-the-Breach style reinforcements: a telegraphed emergence square every 2 turns
+  g.bounty = boss ? null : { id: pick(g, Object.keys(BOUNTIES)), done: false };
   g.reinfLeft = boss ? 0 : BALANCE.reinfBase + Math.floor(floor * BALANCE.reinfSlope);
   g.emerge = null;
 }

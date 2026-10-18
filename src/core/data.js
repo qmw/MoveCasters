@@ -169,5 +169,14 @@ export const BALANCE = {
   bossHpMul: 1.5, eliteChance: 0.25, // HP multiplier for bosses; chance an enemy is elite (+1 HP) at depth 0
 };
 
+// Optional per-floor challenges: +1 Ember and heal 1 when completed.
+export const BOUNTIES = {
+  multi: { text: 'Kill 2+ enemies with a single move' },
+  friendly: { text: 'Let an enemy kill another enemy (friendly fire)' },
+  collide: { text: 'Kill an enemy by slamming it into something' },
+  chain: { text: 'Cast 2+ spells in one move (chain or ice slide)' },
+  quick: { text: 'Clear the floor 5 turns under par' },
+};
+
 export const FLOORS_PER_BIOME = 3;
 export const TOTAL_FLOORS = 12;

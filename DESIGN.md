@@ -56,7 +56,7 @@ Goblins **spoil** every tile they walk over (it goes on a 4-turn recharge).
 ### Doom clock
 
 Each floor has a **par** (`12 + 2 x enemies` turns). There is **no healing between floors** (Blessing *Second Wind* adds 1; skipping a draft heals 1; bosses heal 2). Clear before par → **Swift** (+1 Ember, +1 draft option).
-Take no damage → **Flawless** (+1 Ember). After par, **the Dark rises**: every 4 turns a shade spawns on a telegraphed tile. Shades fade when the last real enemy dies.
+Take no damage → **Flawless** (+1 Ember). Each normal floor also has a random **Bounty** (double kill, friendly-fire kill, collision kill, chain cast, or clearing 5 under par): +1 Ember and heal 1. After par, **the Dark rises**: every 4 turns a shade spawns on a telegraphed tile. Shades fade when the last real enemy dies.
 The first floor of each new biome has 25% fewer enemies (breather).
 
 ## 4. Hero classes (each has a completely different spell list)

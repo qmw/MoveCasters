@@ -1,5 +1,5 @@
 // UI controller: screens, input, modals, persistence.
-import { CLASSES, CLASS_ORDER, ENEMIES, ALLIES, RELICS, BLESSINGS, BIOMES, DEPTH_MODS, T, TOTAL_FLOORS } from '../core/data.js';
+import { CLASSES, CLASS_ORDER, ENEMIES, ALLIES, RELICS, BLESSINGS, BIOMES, DEPTH_MODS, T, TOTAL_FLOORS, BOUNTIES } from '../core/data.js';
 import { SPELLS, spellsOf, spellCd, spellFreq } from '../core/spells.js';
 import { newRun, act, chooseDraft, rerollDraft, chooseRelic, choosePath, healBetween } from '../core/game.js';
 import { newMeta, applyRun, buy, grimoireFor, nextGoals, GRIMOIRE_COSTS, RELIC_COST } from '../core/meta.js';
@@ -291,6 +291,10 @@ function updateHud() {
   const tEl = $('#turns');
   tEl.textContent = g.floorTurns <= g.par ? `Turn ${g.floorTurns}/${g.par} swift` : `THE DARK RISES (${g.floorTurns})`;
   tEl.className = g.floorTurns <= g.par ? 'swift' : 'over';
+  const bEl = $('#bounty');
+  bEl.textContent = g.bounty ? `${g.bounty.done ? '✔' : '★'} Bounty: ${BOUNTIES[g.bounty.id].text}` : '';
+  bEl.className = g.bounty && g.bounty.done ? 'done' : '';
+  bEl.title = 'Optional: +1 Ember and heal 1';
   const rel = $('#relics');
   rel.innerHTML = '';
   for (const id of h.relics) { const c = iconCanvas(genImage('relic_' + id) || sprite(RELICS[id].icon), 22); c.title = `${RELICS[id].name}: ${RELICS[id].desc}`; rel.append(c); }
@@ -458,7 +462,7 @@ function draftModal() {
   const d = g.draft;
   const h = g.hero;
   modal(`<h2>Floor ${g.floor} cleared</h2>
-    <p>${['+1 ✦ cleared', d.swift && '+1 ✦ SWIFT (extra draft option)', g.lastFlawless && '+1 ✦ FLAWLESS', g.isBoss && '+3 ✦ BOSS'].filter(Boolean).map((t) => `<span class="ember" style="margin:0 6px">${t.replace('✦ ', '')}</span>`).join('')}</p>
+    <p>${['+1 ✦ cleared', d.swift && '+1 ✦ SWIFT (extra draft option)', g.lastFlawless && '+1 ✦ FLAWLESS', g.bounty && g.bounty.done && '+1 ✦ BOUNTY (+1 HP)', g.isBoss && '+3 ✦ BOSS'].filter(Boolean).map((t) => `<span class="ember" style="margin:0 6px">${t.replace('✦ ', '')}</span>`).join('')}</p>
     <p>Add a spell to your deck${h.deck.length >= h.slots ? ' (replacing one)' : ''}, or empower one you have. More spells = more variety on the floor, but your best ones get rarer. Then heal ${healBetween(g)}.</p>
     <div class="cards" id="m-cards"></div><div id="m-replace"></div>
     <div class="row-btns"><button class="btn ghost" id="m-skip">Skip (+1 HP)</button>${h.rerolls ? `<button class="btn" id="m-reroll">Reroll (${h.rerolls})</button>` : ''}</div>`);

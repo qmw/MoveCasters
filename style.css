@@ -82,6 +82,8 @@ kbd { font-family: var(--body); background: #0008; border: 1px solid var(--line)
 .hud-mid { text-align: center; font-family: var(--head); font-size: 9px; line-height: 1.7; }
 #turns.over { color: var(--danger); }
 #turns.swift { color: var(--good); }
+#bounty { color: var(--accent); font-family: var(--body); font-size: 16px; }
+#bounty.done { color: var(--good); }
 .hearts { display: flex; flex-wrap: wrap; gap: 1px; max-width: 240px; }
 .hearts img { width: 20px; height: 18px; image-rendering: pixelated; }
 .blockv { font-family: var(--head); font-size: 10px; color: var(--blue); }
@@ -164,3 +166,8 @@ kbd { font-family: var(--body); background: #0008; border: 1px solid var(--line)
 
 .toast { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); max-width: min(92%, 520px); background: #1d1526ee; border: 2px solid var(--accent); border-radius: 6px; padding: 8px 12px; font-size: 19px; line-height: 1.1; color: var(--ink); box-shadow: 0 6px 20px #000a; cursor: pointer; z-index: 3; }
 .toast b { color: var(--accent); }
+.info em { color: var(--accent); font-style: normal; }
+@media (max-width: 760px) {
+  .toast { font-size: 15px; padding: 6px 8px; bottom: 4px; }
+  #bounty { font-size: 13px; }
+}

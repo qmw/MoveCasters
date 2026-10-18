@@ -136,6 +136,8 @@ export function killUnit(g, u, kind) {
   if (u.team !== 'enemy') return;
   g.stats.kills++;
   g.turnKills = (g.turnKills || 0) + 1;
+  if (kind === 'enemy') bountyDone(g, 'friendly');
+  if (kind === 'collide') bountyDone(g, 'collide');
   g.stats.killsByType[u.type] = (g.stats.killsByType[u.type] || 0) + 1;
   if (u.boss) {
     g.stats.bossKills.push(u.type);
@@ -164,6 +166,16 @@ export function killUnit(g, u, kind) {
       if (v) damageUnit(g, v, 1, null, 'blast');
     }
   }
+}
+
+export function bountyDone(g, id) {
+  const b = g.bounty;
+  if (!b || b.done || b.id !== id || g.phase !== 'play') return;
+  b.done = true;
+  g.stats.embers += 1;
+  g.stats.bounties = (g.stats.bounties || 0) + 1;
+  emit(g, { t: 'text', x: g.hero.x, y: g.hero.y - 1, s: 'BOUNTY!', c: '#ffcf5a' });
+  healHero(g, 1);
 }
 
 export function healHero(g, n) {
