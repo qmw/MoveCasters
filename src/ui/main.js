@@ -263,6 +263,7 @@ function checkHints() {
     return hint('danger', '<b>Red crosshairs</b> are telegraphed attacks: they land on the enemy turn, hitting whoever stands there — even other enemies. Dodge, kill, push or stun the attacker.');
   if (g.floorTurns >= g.par - 3 && g.floorTurns < g.par) return hint('par', 'The <b>Dark</b> rises at turn ' + g.par + ': shades will start spawning. Finish the floor fast!');
   if (g.units.some((u) => u.intent && u.intent.delay > 1)) return hint('intent', '<b>Orange squares</b> land in more than one turn (see the countdown).');
+  if (g.emerge && hint('emerge', '<b>Rumbling ground</b> (orange ring): reinforcements emerge there at the end of the turn. Block it by standing on it (1 damage) or pushing an enemy onto it.')) return;
   if (g.floor >= 2) hint('inspect', 'Tip: hover or tap any enemy to see exactly which squares it threatens.');
 }
 
@@ -367,6 +368,7 @@ function describe(t) {
   if (g.fx.corpse[k]) parts.push('<b>Remains</b>Fuel for the Hexer.');
   if (g.fx.trap[k]) parts.push('<b>Your trap</b>Enemies stepping here are hurt and rooted.');
   if (g.doomMark && g.doomMark[0] === x && g.doomMark[1] === y) parts.push('<b>The Dark</b><span class="warn">A shade will emerge here.</span>');
+  if (g.emerge && g.emerge[0] === x && g.emerge[1] === y) parts.push('<b>Emerging enemy</b><span class="warn">An enemy crawls out here at the end of this turn. Stand on it (taking 1 damage) or shove an enemy onto it to block it.</span>');
   const threats = g.units.filter((v) => v.team === 'enemy' && v.intent && intentTiles(g, v).slice(v.intent.kind === 'line' || v.intent.kind === 'charge' ? -1 : 0).some(([a, c]) => a === x && c === y));
   if (threats.length) parts.push(`<span class="warn">Targeted by: ${threats.map((v) => `${ENEMIES[v.type].name} (${v.intent.dmg} dmg${v.intent.delay > 1 ? `, in ${v.intent.delay} turns` : ''})`).join(', ')}</span>`);
   showInfo(parts.join('<br>') || '<span class="k">Floor.</span>');

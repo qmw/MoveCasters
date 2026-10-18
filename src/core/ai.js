@@ -85,6 +85,7 @@ export function dangerMap(g) {
     const hitTiles = u.intent.kind === 'line' || u.intent.kind === 'charge' ? tiles.slice(-1) : tiles;
     for (const [x, y] of hitTiles) m[key(x, y)] = (m[key(x, y)] || 0) + u.intent.dmg;
   }
+  if (g.emerge) { const k = key(g.emerge[0], g.emerge[1]); m[k] = (m[k] || 0) + 1; }
   return m;
 }
 // key -> {dmg, delay, path} for every telegraph (for rendering; path = squares a projectile/charge travels through).
@@ -226,7 +227,14 @@ function planAttack(g, u, dmgOverride) {
   const dmg = dmgOverride || def.dmg;
   const delay = def.slow ? 2 : 1;
   if (pat === 'line' || pat === 'charge') u.intent = { kind: pat, dir: [Math.sign(dx), Math.sign(dy)], range: def.range || 4, dmg, delay };
-  else u.intent = { kind: 'rel', offs: [[dx, dy]], dmg, delay };
+  else if (!def.ranged) {
+    // ITB-style swing: the target square plus the two squares beside it (relative to the attacker),
+    // so the only clean dodge is stepping straight away.
+    const offs = [[dx, dy]];
+    if (Math.abs(dx) + Math.abs(dy) === 1) offs.push([dx - dy, dy + dx], [dx + dy, dy - dx]);
+    else if (Math.abs(dx) === 1 && Math.abs(dy) === 1) offs.push([dx, 0], [0, dy]);
+    u.intent = { kind: 'rel', offs, dmg, delay };
+  } else u.intent = { kind: 'rel', offs: [[dx, dy]], dmg, delay };
   if (dx === 0 || dy === 0) u.facing = [Math.sign(dx), Math.sign(dy)];
   return true;
 }
@@ -279,6 +287,7 @@ function resolveIntent(g, u) {
 }
 
 function shamanAct(g, u) {
+  if (u.timer % 2) return false; // heals every other turn
   const hurt = enemies(g).filter((v) => v !== u && v.hp < v.maxHp && manhattan(v.x, v.y, u.x, u.y) <= 5)
     .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
   if (hurt) {

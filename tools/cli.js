@@ -10,11 +10,11 @@
 //   node tools/cli.js look --save ...                    (re-print the current screen)
 //   node tools/cli.js help
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { newRun, act, chooseDraft, rerollDraft, chooseRelic, choosePath, bumpDamage } from '../src/core/game.js';
+import { newRun, act, chooseDraft, rerollDraft, chooseRelic, choosePath } from '../src/core/game.js';
 import { T, CLASSES, ENEMIES, ALLIES, RELICS, BIOMES, DIRS, TOTAL_FLOORS } from '../src/core/data.js';
-import { SPELLS, spellsOf, spellCd } from '../src/core/spells.js';
-import { threatOf, intentMap, willAct } from '../src/core/ai.js';
-import { key, tile, unitAt, enemies, allies, spikesUp, spellAt, ghostAt, standable } from '../src/core/engine.js';
+import { SPELLS, spellsOf, spellCd, spellFreq } from '../src/core/spells.js';
+import { reachOf, intentMap, intentTiles, dangerMap } from '../src/core/ai.js';
+import { key, tile, unitAt, enemies, allies, spikesUp, standable, cellAt, cellReady } from '../src/core/engine.js';
 
 const PATTERN_TEXT = {
   orth1: 'hits the 4 orthogonal neighbours',
@@ -51,69 +51,96 @@ function letters(s) {
 const nameOf = (u) => (ENEMIES[u.type] || ALLIES[u.type] || { name: u.type }).name;
 
 // ---------------------------------------------------------------- board
-function cellContent(g, x, y, L) {
+// Two-letter spell codes, unique within the deck (initials, else first letters).
+export function spellCodes(deck) {
+  const used = new Set(), out = [];
+  for (const d of deck) {
+    const name = SPELLS[d.id].name.toUpperCase().replace(/[^A-Z ]/g, '');
+    const words = name.split(' ').filter(Boolean);
+    const cands = [];
+    if (words.length > 1) cands.push(words[0][0] + words[1][0]);
+    for (let i = 1; i < words.join('').length; i++) cands.push(words.join('')[0] + words.join('')[i]);
+    cands.push('S' + out.length);
+    const c = cands.find((x) => !used.has(x));
+    used.add(c); out.push(c);
+  }
+  return out;
+}
+
+// Cell = 3-char content + 1 hazard char + 1 overlay char.
+function cellContent(g, x, y, L, codes) {
   const h = g.hero;
-  if (h.x === x && h.y === y) return ' @';
+  if (h.x === x && h.y === y) return ' @ ';
   const u = unitAt(g, x, y);
-  if (u) return L[u.id] + (u.hp > 9 ? '+' : String(u.hp));
-  const b = spellAt(g, x, y);
-  if (b) return '*' + (b.slot + 1);
+  if (u) return L[u.id] + ':' + (u.hp > 9 ? '+' : String(u.hp));
   const t = tile(g, x, y), k = key(x, y);
-  if (t === T.WALL) return '##';
-  if (g.fx.wall[k]) return '=' + Math.min(9, g.fx.wall[k]);
-  if (t === T.PIT) return ' O';
-  const r = ghostAt(g, x, y);
-  if (r) return '?' + Math.min(9, r.t);
-  if (g.fx.trap[k]) return g.fx.trap[k].type === 'bear' ? ' T' : ' t';
-  if (g.fx.burn[k]) return ' &';
-  if (t === T.LAVA) return ' %';
-  if (t === T.SPIKES) return spikesUp(g, x, y, g.turn + 1) ? ' ^' : ' v';
-  if (g.fx.slime[k]) return ' ,';
-  if (t === T.ICE) return ' ~';
-  if (g.fx.corpse[k]) return ' x';
-  return ' .';
+  if (t === T.WALL) return '###';
+  if (g.fx.wall[k]) return 'W' + String(Math.min(99, g.fx.wall[k])).padStart(2, ' ');
+  if (t === T.PIT) return 'pit';
+  const c = cellAt(g, x, y);
+  if (!c || !g.hero.deck[c.slot]) return ' . ';
+  if (c.cd <= 0) return codes[c.slot] + (c.slot + 1);
+  return (c.slot + 1) + '-' + Math.min(9, c.cd);
 }
 
-function overlays(g) {
-  const threat = {};
-  for (const u of enemies(g)) for (const [x, y] of threatOf(g, u)) threat[key(x, y)] = (threat[key(x, y)] || 0) + 1;
-  return { threat, intent: intentMap(g) };
-}
-
-function overlayChar(g, x, y, O) {
-  const k = key(x, y);
-  if (g.doomMark && g.doomMark[0] === x && g.doomMark[1] === y) return 'D';
-  const it = O.intent[k];
-  if (it) return it.delay <= 1 ? 'X' : 'x';
-  const n = O.threat[k];
-  if (n) return n === 1 ? '!' : String(Math.min(9, n));
+function hazardChar(g, x, y) {
+  const t = tile(g, x, y), k = key(x, y);
+  if (t === T.WALL) return '#';
+  if (g.fx.trap[k]) return g.fx.trap[k].type === 'bear' ? 'T' : 't';
+  if (g.fx.burn[k]) return '&';
+  if (t === T.LAVA) return '%';
+  if (t === T.SPIKES) return spikesUp(g, x, y, g.turn + 1) ? '^' : 'v';
+  if (g.fx.slime[k]) return ',';
+  if (t === T.ICE) return '~';
+  if (g.fx.corpse[k]) return 'x';
   return ' ';
 }
 
-function renderBoard(g, L) {
+function overlays(g) {
+  return { danger: dangerMap(g), intent: intentMap(g) };
+}
+
+// Danger char: digit = damage landing here next enemy phase; x = telegraph landing later; | = projectile/charge
+// path (step in and YOU become the target); D = shade spawns here.
+function overlayChar(g, x, y, O) {
+  const k = key(x, y);
+  if (tile(g, x, y) === T.WALL) return '#';
+  if (g.doomMark && g.doomMark[0] === x && g.doomMark[1] === y) return 'D';
+  const d = O.danger[k];
+  if (d) return String(Math.min(9, d));
+  const it = O.intent[k];
+  if (it && !it.path && it.delay > 1) return 'x';
+  if (it && it.path) return '|';
+  return ' ';
+}
+
+function renderBoard(g, L, codes) {
   const O = overlays(g);
   const { w, h } = g.map;
   const lines = [];
-  let head = '    ';
-  for (let x = 0; x < w; x++) head += String(x).padStart(2) + ' ';
+  let head = '   ';
+  for (let x = 0; x < w; x++) head += String(x).padStart(3).padEnd(6);
   lines.push(head);
   for (let y = 0; y < h; y++) {
-    let row = String(y).padStart(2) + '  ';
-    for (let x = 0; x < w; x++) {
-      const c = cellContent(g, x, y, L);
-      row += c + (c === '##' ? ' ' : overlayChar(g, x, y, O));
-    }
+    let row = String(y).padStart(2) + ' ';
+    for (let x = 0; x < w; x++) row += cellContent(g, x, y, L, codes) + hazardChar(g, x, y) + overlayChar(g, x, y, O) + ' ';
     lines.push(row);
   }
   return lines.join('\n');
 }
 
-const KEYTEXT = `Board key (each square = 2 chars + 1 overlay char; x = column, y = row; up = y-1):
-  @ you | A3 enemy letter + HP (+ = 10 or more) | a2 ally | *N spell tile for deck slot N | ?N spell ghost returning in N turns
-  ## wall | . floor | O pit (impassable, pushed foes die) | ^ spikes UP at end of your next move (1 dmg) | v spikes down (safe now)
-  ~ ice (you slide; slides cast spells) | % lava (2 dmg on entry) | , slime (roots you 1 turn) | & burning (1 dmg/turn)
-  =N temporary wall (N turns) | T bear trap | t caltrops | x corpse
-  overlay: ! threatened by 1 enemy (2..9 = by that many) | X boss attack lands next enemy phase | x lands in 2 | D shade spawns here`;
+const KEYTEXT = `Board key — each square is 5 chars: [content 3][hazard 1][danger 1]; x = column, y = row; up = y-1.
+  content: CCn = READY spell tile (code CC, deck slot n; entering it casts it in your move direction)
+           n-k = spent tile of slot n, ready again in k turns (walking on it is a quiet move)
+           @ you | A:3 enemy letter : HP (+ = 10 or more) | a:2 ally | ### wall | Wk temp wall (k turns) | pit (temporary)
+  hazard : ^ spikes UP after your next move (1 dmg) | v spikes down | ~ ice (you slide, casting every ready tile)
+           , slime (roots you 1 turn) | & burning (1 dmg at end of turn) | x corpse | T bear trap | t caltrops
+  danger : N = N damage lands on this square at the next enemy phase (telegraphed; move off it!)
+           x = telegraphed strike landing in 2+ enemy phases | | = path of a telegraphed shot/charge: step into it and
+           it hits YOU instead of its target square | D = shade spawns here
+  Enemies act Into-the-Breach style: each enemy phase they strike their telegraphed squares (hitting anything there,
+  even other enemies), then move, then telegraph a new strike at your current square. Stunning cancels a telegraph.
+  You cannot move into enemies (no melee): all damage comes from the spells you step on.`;
 
 function tileName(g, x, y) {
   const t = tile(g, x, y), k = key(x, y);
@@ -129,6 +156,8 @@ function tileName(g, x, y) {
   if (g.fx.slime[k]) parts.push('slime');
   if (g.fx.trap[k]) parts.push(g.fx.trap[k].type === 'bear' ? 'bear trap' : 'caltrops');
   if (g.fx.corpse[k]) parts.push('corpse');
+  const c = cellAt(g, x, y);
+  if (c && g.hero.deck[c.slot] && t !== T.WALL) parts.push(`spell ${SPELLS[g.hero.deck[c.slot].id].name} (slot ${c.slot + 1}) ${c.cd <= 0 ? 'READY' : 'spent, ready in ' + c.cd}`);
   return parts.join(', ');
 }
 
@@ -141,7 +170,7 @@ function enemyLine(g, u, L) {
   if (u.curse > 0) st.push(`CURSED ${u.curse} (double dmg)`);
   if (u.mark > 0) st.push('marked (+1 dmg taken)');
   if (u.elite) st.push('elite');
-  if (def.slow) st.push(willAct(u) ? 'acts this turn' : 'resting this turn (slow)');
+  if (def.slow) st.push('slow (moves every other turn, telegraphs land 1 phase later)');
   if (def.shield) st.push(`shield faces ${dirName(u.facing)}`);
   let pat = PATTERN_TEXT[def.pattern] || def.pattern;
   if (def.pattern === 'charge' && u.root > 0) pat += ' (rooted: only adjacent)';
@@ -149,9 +178,15 @@ function enemyLine(g, u, L) {
   if (st.length) s += ` | ${st.join(', ')}`;
   s += `\n      ${def.desc}`;
   if (u.intent) {
-    const it = u.intent;
-    s += `\n      INTENT: ${it.kind === 'charge' ? `charge ${dirName(it.dir)} along ${it.tiles.length} squares` : `area attack on ${it.tiles.length} squares (marked X/x)`}, ${it.dmg} dmg, resolves in ${it.delay} enemy phase(s)`;
-  } else if (u.boss) s += `\n      boss timer ${u.timer}` + bossHint(u);
+    const it = u.intent, tl = intentTiles(g, u);
+    const where = it.kind === 'line' || it.kind === 'charge'
+      ? `${it.kind === 'charge' ? 'charges' : 'shoots'} ${dirName(it.dir)}, hitting the first thing in line${tl.length ? ` (now (${tl[tl.length - 1].join(',')}))` : ''}`
+      : `strikes ${tl.length > 3 ? tl.length + ' squares' : tl.map((t) => '(' + t.join(',') + ')').join(' ')}`;
+    s += `\n      TELEGRAPH: ${where} for ${it.dmg}, in ${it.delay} enemy phase(s)${u.stun > 0 ? ' — will be CANCELLED (stunned)' : ''}`;
+  } else s += '\n      no telegraph (will move, then telegraph if you are in its reach)';
+  const reach = reachOf(g, u);
+  if (reach.length && reach.length <= 12) s += `\n      reach now: ${reach.map((t) => '(' + t.join(',') + ')').join(' ')}`;
+  if (u.boss) s += `\n      boss timer ${u.timer}` + bossHint(u);
   return s;
 }
 function bossHint(u) {
@@ -180,16 +215,16 @@ function heroBlock(g) {
   if (h.aim) st.push('steady aim (+1 next spell)');
   if (g.cls === 'hexer') st.push(h.harvested ? 'harvest used' : 'harvest ready');
   const lines = [];
-  lines.push(`HERO ${C.name} at (${h.x},${h.y}) on ${tileName(g, h.x, h.y)} | HP ${h.hp}/${h.maxHp} | bump dmg ${CLASSES[g.cls].bump}` + (st.length ? ` | ${st.join(', ')}` : ''));
+  lines.push(`HERO ${C.name} at (${h.x},${h.y}) on ${tileName(g, h.x, h.y)} | HP ${h.hp}/${h.maxHp}` + (st.length ? ` | ${st.join(', ')}` : ''));
   lines.push(`  Passive: ${C.passive}`);
   if (h.relics.length) lines.push(`  Relics: ${h.relics.map((r) => `${RELICS[r].name} (${RELICS[r].desc})`).join('; ')}`);
-  lines.push(`DECK (${h.deck.length}/${h.slots} slots):`);
+  lines.push(`DECK / SPELL LEGEND (${h.deck.length}/${h.slots} slots):`);
+  const codes = spellCodes(h.deck);
   h.deck.forEach((d, i) => {
     const S = SPELLS[d.id];
-    const b = g.board && g.board.find((v) => v.slot === i);
-    const r = g.recharge && g.recharge.find((v) => v.slot === i);
-    const where = b ? `ON BOARD at (${b.x},${b.y})` : r ? `recharging, returns at (${r.x},${r.y}) in ${r.t}` : 'not on board';
-    lines.push(`  *${i + 1} ${S.name}${d.lv ? '+' : ''} [cd ${spellCd(g, d.id, d.lv)}] ${where} — ${S.desc}${d.lv ? ' (empowered: +1 dmg/effect, -1 cd)' : ''}`);
+    let ready = 0, total = 0;
+    if (g.cells) g.cells.forEach((c) => { if (c && c.slot === i) { total++; if (c.cd <= 0) ready++; } });
+    lines.push(`  ${codes[i]}${i + 1} = ${S.name}${d.lv ? '+' : ''} [cooldown ${spellCd(g, d.id, d.lv)}, freq ${spellFreq(d.id)}] tiles ready ${ready}/${total} — ${S.desc}${d.lv ? ' (empowered)' : ''}`);
   });
   return lines.join('\n');
 }
@@ -201,21 +236,26 @@ function adjacentSummary(g, L) {
     const x = h.x + dx, y = h.y + dy;
     const u = unitAt(g, x, y);
     let s;
-    if (u && u.team === 'enemy') s = `bump ${L[u.id]} ${nameOf(u)} for ${bumpDamage(g, u)}`;
+    if (u && u.team === 'enemy') s = `blocked by ${L[u.id]} ${nameOf(u)} — illegal (no melee)`;
     else if (u) s = `swap with ally ${L[u.id]}`;
     else if (!standable(g, x, y)) s = 'blocked (' + tileName(g, x, y) + ') — illegal';
     else {
-      s = `move to (${x},${y}) ${tileName(g, x, y)}`;
-      const b = spellAt(g, x, y);
-      if (b) s += ` — CASTS *${b.slot + 1} ${SPELLS[g.hero.deck[b.slot].id].name} facing ${name}`;
-      const n = O.threat[key(x, y)], it = O.intent[key(x, y)];
-      if (n) s += ` — currently threatened by ${n}`;
-      if (it) s += ` — boss attack zone (${it.delay <= 1 ? 'next phase' : 'in ' + it.delay})`;
+      s = `move to (${x},${y})`;
+      const hz = hazardChar(g, x, y);
+      if (hz !== ' ') s += ` [${tileName(g, x, y).split(', spell')[0]}]`;
+      const c = cellAt(g, x, y);
+      if (c && cellReady(g, x, y)) s += ` — CASTS ${SPELLS[g.hero.deck[c.slot].id].name} facing ${name}`;
+      else if (c) s += ' — quiet move (tile spent)';
+      if (tile(g, x, y) === T.ICE) s += ' — ICE: you keep sliding';
+      const n = O.danger[key(x, y)], it = O.intent[key(x, y)];
+      if (n) s += ` — DANGER: ${n} dmg lands here next enemy phase`;
+      else if (it && it.path) s += ' — in a telegraphed shot/charge path (you would be hit)';
+      else if (it) s += ` — telegraphed strike in ${it.delay} phases`;
     }
     out.push(`  ${name.padEnd(5)}: ${s}`);
   }
-  const n = O.threat[key(h.x, h.y)], it = O.intent[key(h.x, h.y)];
-  out.push(`  wait : stay at (${h.x},${h.y})${n ? ` — currently threatened by ${n}` : ''}${it ? ' — boss attack zone' : ''}${g.cls === 'ranger' ? ' — Steady Aim' : ''}`);
+  const n = O.danger[key(h.x, h.y)];
+  out.push(`  wait : stay at (${h.x},${h.y})${n ? ` — DANGER: ${n} dmg lands here next enemy phase` : ''}${g.cls === 'ranger' ? ' — Steady Aim' : ''}`);
   return out.join('\n');
 }
 
@@ -227,7 +267,7 @@ export function screen(s) {
   out.push(`=== FLOOR ${g.floor}/${TOTAL_FLOORS} — ${B.name}${g.isBoss ? ' (BOSS)' : ''} | turn ${g.floorTurns} / par ${g.par}` +
     (g.floorTurns >= g.par ? ' — THE DARK RISES (shades spawn)' : ` (${g.par - g.floorTurns} until the Dark)`) + ` | phase: ${g.phase} ===`);
   if (g.phase === 'play' || g.phase === 'dead' || g.phase === 'won') {
-    out.push(renderBoard(g, L));
+    out.push(renderBoard(g, L, spellCodes(g.hero.deck)));
     out.push(KEYTEXT);
     out.push('ENEMIES:');
     for (const u of enemies(g)) out.push(enemyLine(g, u, L));
@@ -271,7 +311,6 @@ export function describeEvents(g, evs, pre, L) {
   for (const e of evs) {
     switch (e.t) {
       case 'heromove': out.push(`You ${e.dash ? 'dash/slide' : 'move'} to (${e.to[0]},${e.to[1]}).`); break;
-      case 'herolunge': out.push(`You bump-attack (${e.to[0]},${e.to[1]}).`); break;
       case 'cast': out.push(`You CAST ${SPELLS[e.id].name} facing ${dirName(e.dir)} from (${e.x},${e.y}).`); break;
       case 'hit': out.push(`  ${nm(e.id)} takes ${e.n} damage.`); break;
       case 'death': out.push(`  ${ENEMIES[e.type] || ALLIES[e.type] ? nm(e.id) : e.type} dies at (${e.x},${e.y}).`); break;
@@ -279,7 +318,7 @@ export function describeEvents(g, evs, pre, L) {
       case 'heal': out.push(`  You heal ${e.n}.`); break;
       case 'text': out.push(`  [${e.s}] at (${e.x},${e.y})`); break;
       case 'move': out.push(`${nm(e.id)} ${e.push ? 'is pushed' : e.dash ? 'dashes' : 'moves'} (${e.from[0]},${e.from[1]}) -> (${e.to[0]},${e.to[1]}).`); break;
-      case 'lunge': out.push(`${nm(e.id)} attacks (${e.to[0]},${e.to[1]}).`); break;
+      case 'lunge': out.push(`${nm(e.id)} strikes (${e.to[0]},${e.to[1]}).`); break;
       case 'bolt': { const who = at(e.from[0], e.from[1]); if (who) out.push(`${who} shoots toward (${e.to[0]},${e.to[1]}).`); break; }
       case 'aoe': out.push(`  Area effect on ${e.tiles.length} squares.`); break;
       case 'spawn': out.push(`${nm(e.id)} appears at (${e.x},${e.y}).`); break;

@@ -14,7 +14,7 @@ const aoe = (g, tiles, c) => emit(g, { t: 'aoe', tiles, c });
 const H = (g) => g.hero;
 const around8 = (x, y) => KING.map(([dx, dy]) => [x + dx, y + dy]);
 const enemyAt = (g, x, y) => { const u = unitAt(g, x, y); return u && u.team === 'enemy' ? u : null; };
-const ignite = (g, x, y, n = 3) => { if (inb(g, x, y) && !isWall(g, x, y)) g.fx.burn[key(x, y)] = Math.max(g.fx.burn[key(x, y)] || 0, n); };
+const ignite = (g, x, y, n = 2) => { if (inb(g, x, y) && !isWall(g, x, y)) g.fx.burn[key(x, y)] = Math.max(g.fx.burn[key(x, y)] || 0, n); };
 function shootFirst(g, c, range, dmg, color) {
   const h = H(g);
   const tiles = ray(g, h.x, h.y, c.dx, c.dy, range, true);
@@ -130,7 +130,7 @@ export const SPELLS = {
   firebolt: { cls: 'pyro', tier: 's', name: 'Firebolt', cd: 1, freq: 3, icon: 'weapon_red_magic_staff',
     desc: 'The first enemy in a line takes 1.',
     cast(g, c) { shootFirst(g, c, 99, 1 + c.P, '#ff8a3d'); } },
-  flame_wave: { cls: 'pyro', tier: 's', name: 'Flame Wave', cd: 4, icon: 'wall_fountain_basin_red_anim',
+  flame_wave: { cls: 'pyro', tier: 's', name: 'Flame Wave', cd: 4, freq: 1, icon: 'wall_fountain_basin_red_anim',
     desc: 'A 3-wide, 2-deep wave ahead: 1 damage and sets the ground ablaze.',
     cast(g, c) {
       const h = H(g), tiles = [];
@@ -142,7 +142,7 @@ export const SPELLS = {
       aoe(g, ok, '#ff8a3d');
       ok.forEach(([x, y]) => { ignite(g, x, y); hit(g, enemyAt(g, x, y), 1 + c.P); });
     } },
-  fire_ring: { cls: 'pyro', tier: 's', name: 'Fire Ring', cd: 5, icon: 'floor_spikes_anim',
+  fire_ring: { cls: 'pyro', tier: 's', name: 'Fire Ring', cd: 6, icon: 'floor_spikes_anim',
     desc: 'All 8 surrounding squares: 1 damage and set ablaze.',
     cast(g, c) {
       const h = H(g), tiles = around8(h.x, h.y).filter(([x, y]) => inb(g, x, y) && !isWall(g, x, y));
@@ -150,14 +150,14 @@ export const SPELLS = {
       tiles.forEach(([x, y]) => { ignite(g, x, y); hit(g, enemyAt(g, x, y), 1 + c.P); });
     } },
   heat_shield: { cls: 'pyro', tier: 's', name: 'Heat Shield', cd: 5, icon: 'flask_big_yellow',
-    desc: 'Gain 1 Block. Adjacent enemies catch fire (their squares burn).',
+    desc: 'Gain 1 Block. Adjacent enemies (incl. diagonal) are stunned and catch fire.',
     cast(g, c) {
       const h = H(g); h.block += 1 + c.lv;
-      ORTH.forEach(([dx, dy]) => { const u = enemyAt(g, h.x + dx, h.y + dy); if (u) ignite(g, u.x, u.y); });
+      KING.forEach(([dx, dy]) => { const u = enemyAt(g, h.x + dx, h.y + dy); if (u) { ignite(g, u.x, u.y); u.stun = Math.max(u.stun, 1); } });
       aoe(g, around8(h.x, h.y), '#ffd36b');
     } },
   meteor: { cls: 'pyro', tier: 'b', name: 'Meteor', cd: 6, icon: 'bomb_f0',
-    desc: 'The toughest enemy takes 3; its neighbours take 1.',
+    desc: 'The toughest enemy takes 2; its neighbours take 1.',
     cast(g, c) {
       const es = enemies(g); if (!es.length) return;
       const u = es.reduce((a, b) => (b.hp > a.hp ? b : a));
@@ -165,7 +165,7 @@ export const SPELLS = {
       bolt(g, [u.x, u.y - 6], [u.x, u.y], '#ff5a1f');
       aoe(g, [[u.x, u.y], ...tiles], '#ff5a1f');
       const ns = tiles.map(([x, y]) => enemyAt(g, x, y)).filter(Boolean);
-      hit(g, u, 3 + c.P);
+      hit(g, u, 2 + c.P);
       ns.forEach((v) => hit(g, v, 1 + c.P));
       ignite(g, u.x, u.y);
     } },
@@ -228,9 +228,9 @@ export const SPELLS = {
 
   // ======================= RANGER =======================
   arrow: { cls: 'ranger', tier: 's', name: 'Arrow', cd: 1, freq: 3, icon: 'weapon_arrow',
-    desc: 'The first enemy in a line takes 1.',
-    cast(g, c) { shootFirst(g, c, 99, 1 + c.P, '#d9f0a3'); } },
-  vault: { cls: 'ranger', tier: 's', name: 'Vault', cd: 3, icon: 'weapon_bow',
+    desc: 'The first enemy in a line takes 2.',
+    cast(g, c) { shootFirst(g, c, 99, 2 + c.P, '#d9f0a3'); } },
+  vault: { cls: 'ranger', tier: 'b', name: 'Vault', cd: 3, icon: 'weapon_bow',
     desc: 'Leap 2 squares backward, then loose an arrow forward for 1.',
     cast(g, c) {
       const h = H(g);
@@ -244,15 +244,15 @@ export const SPELLS = {
       shootFirst(g, c, 99, 1 + c.P, '#d9f0a3');
     } },
   bear_trap: { cls: 'ranger', tier: 's', name: 'Bear Trap', cd: 4, icon: 'weapon_saw_sword',
-    desc: 'Set a trap on the square ahead (or under the enemy there): 2 damage and rooted 2 turns.',
+    desc: 'Set a trap on the square ahead: 2 damage and rooted 2 turns. If an enemy is there, it is also stunned.',
     cast(g, c) {
       const h = H(g), x = h.x + c.dx, y = h.y + c.dy;
       const u = enemyAt(g, x, y);
-      if (u) { hit(g, u, 2 + c.P); if (u.hp > 0) u.root = Math.max(u.root, 2); return; }
+      if (u) { hit(g, u, 2 + c.P); if (u.hp > 0) { u.root = Math.max(u.root, 2); u.stun = Math.max(u.stun, 1); } return; }
       if (standable(g, x, y)) g.fx.trap[key(x, y)] = { type: 'bear', bonus: c.P };
       aoe(g, [[x, y]], '#ffd36b');
     } },
-  piercing_shot: { cls: 'ranger', tier: 's', name: 'Piercing Shot', cd: 4, icon: 'weapon_bow_2',
+  piercing_shot: { cls: 'ranger', tier: 's', name: 'Piercing Shot', cd: 4, freq: 3, icon: 'weapon_bow_2',
     desc: 'Every enemy in a line takes 1; the first takes 1 more.',
     cast(g, c) {
       const { us } = pierce(g, c, 99, 1 + c.P, '#d9f0a3');
@@ -270,7 +270,7 @@ export const SPELLS = {
         hit(g, firstEnemyInRay(g, sx, sy, c.dx, c.dy), 2 + c.P);
       }
     } },
-  hawk: { cls: 'ranger', tier: 'b', name: 'Hawk', cd: 4, icon: 'angel_idle_anim',
+  hawk: { cls: 'ranger', tier: 's', name: 'Hawk', cd: 4, icon: 'angel_idle_anim',
     desc: 'Your hawk strikes the nearest enemy for 2 and stuns it.',
     cast(g, c) { const h = H(g), u = nearestEnemy(g, h.x, h.y); if (!u) return; bolt(g, [h.x, h.y], [u.x, u.y], '#fff'); hit(g, u, 2 + c.P); if (u.hp > 0) u.stun = Math.max(u.stun, 1); } },
   snare_net: { cls: 'ranger', tier: 'b', name: 'Snare Net', cd: 5, icon: 'wall_hole_1',
@@ -340,7 +340,7 @@ export const SPELLS = {
       hit(g, u, 1 + c.P);
       if (u.hp > 0) pushUnit(g, u, c.dx, c.dy, 2);
     } },
-  raise_wall: { cls: 'geo', tier: 's', name: 'Raise Wall', cd: 5, icon: 'wall_mid',
+  raise_wall: { cls: 'geo', tier: 'b', name: 'Raise Wall', cd: 5, icon: 'wall_mid',
     desc: 'Raise a 3-wide stone wall 1 square ahead for 6 turns. Enemies there are pushed away and take 1.',
     cast(g, c) {
       const h = H(g), ax = h.x + c.dx, ay = h.y + c.dy;
@@ -369,7 +369,7 @@ export const SPELLS = {
       const h = H(g); aoe(g, around8(h.x, h.y), '#c8a26b');
       KING.forEach(([dx, dy]) => { const u = enemyAt(g, h.x + dx, h.y + dy); if (u) pushUnit(g, u, dx, dy, 2 + c.lv); });
     } },
-  earth_spike: { cls: 'geo', tier: 'b', name: 'Earth Spike', cd: 3, icon: 'floor_spikes_anim',
+  earth_spike: { cls: 'geo', tier: 's', name: 'Earth Spike', cd: 3, icon: 'floor_spikes_anim',
     desc: 'The nearest enemy within 4 takes 2.',
     cast(g, c) { const h = H(g), u = nearestEnemy(g, h.x, h.y, 4); if (!u) return; aoe(g, [[u.x, u.y]], '#c8a26b'); hit(g, u, 2 + c.P); } },
   sinkhole: { cls: 'geo', tier: 'b', name: 'Sinkhole', cd: 6, icon: 'hole',
@@ -500,13 +500,13 @@ export const SPELLS = {
   bone_spear: { cls: 'hexer', tier: 's', name: 'Bone Spear', cd: 1, freq: 3, icon: 'weapon_spear',
     desc: 'Every enemy in a line (range 3) takes 1.',
     cast(g, c) { pierce(g, c, 3, 1 + c.P, '#e8e0c8'); } },
-  life_drain: { cls: 'hexer', tier: 's', name: 'Life Drain', cd: 4, icon: 'flask_red',
-    desc: 'The nearest enemy within 3 takes 1. You heal 1.',
+  life_drain: { cls: 'hexer', tier: 's', name: 'Life Drain', cd: 4, freq: 1, icon: 'flask_red',
+    desc: 'The nearest enemy within 3 takes 1. If it dies, you heal 1.',
     cast(g, c) {
       const h = H(g), u = nearestEnemy(g, h.x, h.y, 3);
       if (!u) return;
       bolt(g, [u.x, u.y], [h.x, h.y], '#ff4d6d');
-      hit(g, u, 1 + c.P); healHero(g, 1);
+      hit(g, u, 1 + c.P); if (u.hp <= 0) healHero(g, 1);
     } },
   raise_dead: { cls: 'hexer', tier: 's', name: 'Raise Dead', cd: 5, icon: 'skelet_idle_anim',
     desc: 'Up to 2 corpses within 4 rise as skeleton allies (2 HP). They fight for you.',
@@ -525,14 +525,14 @@ export const SPELLS = {
     desc: 'First enemy in a line takes 1 and is Cursed 3 turns (takes double damage).',
     cast(g, c) { const u = shootFirst(g, c, 99, 1 + c.P, '#7de0c8'); if (u && u.hp > 0) u.curse = Math.max(u.curse, 3 + c.lv); } },
   corpse_explosion: { cls: 'hexer', tier: 'b', name: 'Corpse Explosion', cd: 5, icon: 'bomb_f1',
-    desc: 'Every corpse on the floor explodes: 2 damage to its 8 neighbours.',
+    desc: 'Every corpse on the floor explodes: 1 damage to its 8 neighbours.',
     cast(g, c) {
       const cs = Object.keys(g.fx.corpse).map((k) => k.split(',').map(Number));
       g.fx.corpse = {};
       for (const [cx, cy] of cs) {
         const tiles = around8(cx, cy);
         aoe(g, tiles, '#7de0c8');
-        tiles.forEach(([x, y]) => hit(g, enemyAt(g, x, y), 2 + c.P));
+        tiles.forEach(([x, y]) => hit(g, enemyAt(g, x, y), 1 + c.P));
       }
     } },
   bone_wall: { cls: 'hexer', tier: 'b', name: 'Bone Wall', cd: 4, icon: 'skull',
@@ -543,7 +543,7 @@ export const SPELLS = {
       tiles.forEach(([x, y]) => placeTempWall(g, x, y, 4 + c.lv));
       aoe(g, tiles, '#e8e0c8');
     } },
-  soul_swap: { cls: 'hexer', tier: 'b', name: 'Soul Swap', cd: 4, icon: 'doors_leaf_open',
+  soul_swap: { cls: 'hexer', tier: 'b', name: 'Soul Swap', cd: 4, freq: 1, icon: 'doors_leaf_open',
     desc: 'Swap places with the farthest enemy; it takes 2.',
     cast(g, c) {
       const h = H(g);
@@ -555,7 +555,7 @@ export const SPELLS = {
       hit(g, u, 2 + c.P);
       c.moveHero(ux, uy, c.dx, c.dy, false);
     } },
-  wither: { cls: 'hexer', tier: 'b', name: 'Wither', cd: 6, icon: 'flask_big_green',
+  wither: { cls: 'hexer', tier: 'l', name: 'Wither', cd: 6, icon: 'flask_big_green',
     desc: 'Every enemy takes 1 (cursed enemies take double, as usual).',
     cast(g, c) { const us = enemies(g); aoe(g, us.map((u) => [u.x, u.y]), '#7de0c8'); us.forEach((u) => hit(g, u, 1 + c.P)); } },
   grave_grasp: { cls: 'hexer', tier: 'l', name: 'Grave Grasp', cd: 5, icon: 'wall_hole_1',

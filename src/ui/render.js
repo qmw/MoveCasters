@@ -268,6 +268,14 @@ export class Renderer {
         ctx.strokeStyle = 'rgba(255,90,90,0.75)'; ctx.lineWidth = Math.max(2, ts / 16); ctx.setLineDash([5, 4]);
         ctx.beginPath(); ctx.moveTo(X(u.x) + ts / 2, Y(u.y) + ts / 2); ctx.lineTo(X(end[0]) + ts / 2, Y(end[1]) + ts / 2); ctx.stroke(); ctx.setLineDash([]);
       }
+      if (g.emerge) {
+        const [x, y] = g.emerge;
+        const p2 = 0.5 + 0.5 * Math.sin(now / 140);
+        ctx.fillStyle = `rgba(120,60,20,${0.45 + 0.2 * p2})`;
+        ctx.beginPath(); ctx.ellipse(X(x) + ts / 2, Y(y) + ts * 0.6, ts * 0.4, ts * 0.25, 0, 0, 7); ctx.fill();
+        ctx.strokeStyle = '#ffae3d'; ctx.lineWidth = 2; ctx.stroke();
+        this.label(ctx, X(x) + ts / 2, Y(y) + ts * 0.35, '▲', '#ffae3d', 'center', 11);
+      }
       if (g.doomMark) {
         const [x, y] = g.doomMark;
         ctx.strokeStyle = `rgba(180,90,255,${0.5 + 0.5 * Math.sin(now / 120)})`; ctx.lineWidth = 3;

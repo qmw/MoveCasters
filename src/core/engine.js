@@ -38,7 +38,6 @@ export function enemySafe(g, x, y) {
   const t = tile(g, x, y);
   if (t === T.LAVA) return false;
   if (t === T.SPIKES && spikesUp(g, x, y, g.turn + 1)) return false;
-  if (g.fx.burn[key(x, y)]) return false;
   if (g.fx.trap[key(x, y)] && !g.fx.trap[key(x, y)].known) return true;
   return true;
 }

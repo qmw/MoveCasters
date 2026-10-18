@@ -3,8 +3,8 @@
 import { newRun, act, chooseDraft, chooseRelic, choosePath } from '../src/core/game.js';
 import { SPELLS, spellsOf } from '../src/core/spells.js';
 import { ENEMIES, T } from '../src/core/data.js';
-import { threatOf, intentMap } from '../src/core/ai.js';
-import { key, tile, standable, enemies, spikesUp, manhattan, unitAt } from '../src/core/engine.js';
+import { dangerMap, intentMap } from '../src/core/ai.js';
+import { key, tile, standable, enemies, spikesUp, manhattan, unitAt, cellReady } from '../src/core/engine.js';
 
 export const ACTIONS = ['up', 'down', 'left', 'right', 'wait'];
 
@@ -43,15 +43,14 @@ export function draftChoice(g) {
 }
 
 // ---- state evaluation ---------------------------------------------------------
+// Damage that lands on the hero's square next enemy phase if he stays (exact: dangerMap), plus delayed telegraphs.
 function heroDanger(g) {
   const h = g.hero;
   if (h.invis > 0) return 0;
-  let d = 0;
-  for (const u of enemies(g)) {
-    if (threatOf(g, u).some(([x, y]) => x === h.x && y === h.y)) d += ENEMIES[u.type].dmg || 1;
-  }
-  const im = intentMap(g)[key(h.x, h.y)];
-  if (im) d += im.dmg * (im.delay <= 1 ? 1 : 0.4);
+  const k = key(h.x, h.y);
+  let d = dangerMap(g)[k] || 0;
+  const im = intentMap(g)[k];
+  if (im && !im.path && im.delay > 1) d += im.dmg * 0.4;
   return d;
 }
 
@@ -98,19 +97,22 @@ function castGain(a, b) {
   if (b.phase === 'dead') v -= 10;
   return v;
 }
-export function spellOpportunities(g) {
+// Spell opportunities: for every READY spell tile within reach and each entry direction, what would casting it
+// right now achieve? Only tiles beyond the search horizon matter (closer ones are seen by the search itself).
+export function spellOpportunities(g, { minDist = 3, maxDist = 7 } = {}) {
   const opps = [];
-  for (const b of g.board) {
-    if (unitAt(g, b.x, b.y)) continue;
+  const dm = distMap(g), W = g.map.w;
+  for (let y = 0; y < g.map.h; y++) for (let x = 0; x < W; x++) {
+    const d = dm[y * W + x];
+    if (d < minDist - 1 || d > maxDist || !cellReady(g, x, y) || unitAt(g, x, y)) continue;
     for (const [name, [dx, dy]] of Object.entries(DIRV)) {
-      const ax = b.x - dx, ay = b.y - dy;
-      if (!standable(g, ax, ay) || tile(g, ax, ay) === T.LAVA) continue;
-      const occ = unitAt(g, ax, ay);
-      if (occ && !(g.hero.x === ax && g.hero.y === ay)) continue;
+      const ax = x - dx, ay = y - dy;
+      if (!standable(g, ax, ay) || dm[ay * W + ax] < minDist - 1) continue;
+      if (unitAt(g, ax, ay)) continue;
       const c = clone(g);
       c.hero.x = ax; c.hero.y = ay; c.hero.root = 0;
       const before = clone(c);
-      if (!act(c, name)) continue;
+      if (!act(c, name, { heroOnly: true })) continue;
       const v = castGain(before, c);
       if (v > 0.5) opps.push({ x: ax, y: ay, v });
     }
@@ -141,11 +143,10 @@ export function evalState(g, opps = null) {
   if (t === T.SPIKES && spikesUp(g, h.x, h.y, g.turn + 1) && !h.relics.includes('spiked_boots')) s -= 40;
   if (g.fx.burn[key(h.x, h.y)] && g.cls !== 'pyro') s -= 40;
   if (h.root > 0) s -= 8;
-  const dm = distMap(g), W = g.map.w;
-  let sd = 25;
-  for (const b of g.board) sd = Math.min(sd, dm[b.y * W + b.x]);
-  s -= Math.min(sd, 12) * 3;
+  // keep options open: ready spell tiles next to the hero
+  for (const [dx, dy] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) if (cellReady(g, h.x + dx, h.y + dy)) s += 4;
   if (opps && opps.length) {
+    const dm = distMap(g), W = g.map.w;
     let best = 0;
     for (const o of opps) best = Math.max(best, o.v * 25 - Math.min(dm[o.y * W + o.x], 20) * 5);
     s += best;
@@ -192,7 +193,7 @@ export function chooseGreedy(g, children, rng) {
 
 // Beam search over hero action sequences; enemies respond through act() itself (deterministic,
 // same RNG stream as the real game, so predictions are exact).
-export function choosePlanner(g, children, rng, { plies = 3, beam = 8, opps = null } = {}) {
+export function choosePlanner(g, children, rng, { plies = 5, beam = 16, opps = null } = {}) {
   const roots = children.map((c) => ({ ...c, kids: [], depth: 1 }));
   let frontier = roots.filter((n) => n.s.phase === 'play');
   for (let p = 2; p <= plies && frontier.length; p++) {
@@ -266,26 +267,28 @@ function hurtCause(evs, i, pre, post, preBurn) {
 }
 
 // Process events of one real act(); returns {kills:[credit], hurts:[[cause,n]], deathCause}
-export function digestEvents(pre, preBurn, g) {
+export function digestEvents(pre, preBurn, g, heroEnd = Infinity) {
   const evs = g.events;
   let ctx = 'other';
   const kills = [], hurts = [];
   let deathCause = null, lastHurtCause = null;
   for (let i = 0; i < evs.length; i++) {
     const e = evs[i];
+    if (i === heroEnd) ctx = 'enemyphase';
     switch (e.t) {
       case 'cast': ctx = 'spell:' + e.id; break;
+      case 'bolt': case 'aoe': case 'bonk': if (i >= heroEnd && ctx !== 'ally') ctx = 'enemystrike'; break;
       case 'herolunge': ctx = 'bump'; break;
-      case 'lunge': { const u = unitInfo(e.id, pre, g); ctx = u && u.team === 'ally' ? 'ally' : 'enemyphase'; break; }
-      case 'move': if (!e.push && !e.dash) ctx = 'enemyphase'; break;
+      case 'lunge': { const u = unitInfo(e.id, pre, g); ctx = u && u.team === 'ally' ? 'ally' : 'enemystrike'; break; }
+      case 'move': if (i >= heroEnd && !e.push && !e.dash) ctx = 'enemyphase'; break;
       case 'spawn': ctx = 'enemyphase'; break;
       case 'text': if (e.s === 'SNAP') ctx = 'spell:bear_trap'; else if (e.s === 'OUCH') ctx = 'spell:caltrops'; break;
       case 'death': {
         if (!ENEMIES[e.type] || ALLY_TYPES.has(e.type)) break;
         let c = ctx;
-        if (c === 'enemyphase') {
+        if (c === 'enemyphase' || c === 'enemystrike') {
           const p = pre.get(e.id);
-          c = p && p.poison > 0 ? 'poison' : preBurn.has(key(e.x, e.y)) ? 'burn' : 'other';
+          c = c === 'enemystrike' ? 'friendly_fire' : p && p.poison > 0 ? 'poison' : preBurn.has(key(e.x, e.y)) ? 'burn' : 'other';
         }
         kills.push(c);
         break;
@@ -299,7 +302,7 @@ export function digestEvents(pre, preBurn, g) {
 
 // ---- full run -------------------------------------------------------------------
 export function playRun({ bot = 'planner', cls = 'knight', seed = 1, depth = 0, grimoire = 'none', frozen = true,
-  plies = 3, beam = 8, maxFloorTurns = 250 } = {}) {
+  plies = 5, beam = 16, maxFloorTurns = 250 } = {}) {
   const meta = { frozen, grimoire: {} };
   if (grimoire === 'all') for (const id of spellsOf(cls)) if (SPELLS[id].tier === 'l') meta.grimoire[id] = true;
   const g = newRun({ cls, seed, depth, meta });
@@ -335,8 +338,11 @@ export function playRun({ bot = 'planner', cls = 'knight', seed = 1, depth = 0, 
       else if (bot === 'greedy') a = chooseGreedy(g, children, rng);
       else a = choosePlanner(g, children, rng, { plies, beam, opps });
       const pre = snapshot(g), preBurn = new Set(Object.keys(g.fx.burn));
+      // replay the hero phase alone on a clone: its event count marks where the enemy phase starts
+      const hc = clone(g); hc.quiet = false;
+      act(hc, a, { heroOnly: true });
       act(g, a);
-      const d = digestEvents(pre, preBurn, g);
+      const d = digestEvents(pre, preBurn, g, hc.events.length);
       for (const e of g.events) if (e.t === 'cast') rec.casts[e.id] = (rec.casts[e.id] || 0) + 1;
       for (const k of d.kills) rec.kills[k] = (rec.kills[k] || 0) + 1;
       for (const [c, n] of d.hurts) rec.hurtBy[c] = (rec.hurtBy[c] || 0) + n;

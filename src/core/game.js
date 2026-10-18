@@ -1,5 +1,5 @@
 // Run state machine and turn loop. Pure & deterministic given the seed.
-import { T, DIRS, CLASSES, RELICS, TOTAL_FLOORS, FLOORS_PER_BIOME } from './data.js';
+import { T, DIRS, CLASSES, RELICS, TOTAL_FLOORS, FLOORS_PER_BIOME, BIOMES } from './data.js';
 import { rnd, rint, pick, shuffle, hashSeed } from './rng.js';
 import {
   key, tile, setTile, standable, unitAt, enemies, allies, emit, damageUnit, hurtHero, healHero, spikesUp, manhattan,
@@ -33,7 +33,7 @@ export function newRun({ cls = 'knight', seed = Date.now(), depth = 0, meta = {}
   return g;
 }
 
-export const healBetween = (g) => Math.max(0, 1 + (g.meta.blessings.second_wind ? 1 : 0) - (g.depth >= 4 ? 1 : 0));
+export const healBetween = (g) => Math.max(0, (g.meta.blessings.second_wind ? 1 : 0) - (g.depth >= 4 ? 1 : 0));
 
 // ---- hero ---------------------------------------------------------------------
 function castCell(g, cell, dx, dy, depthN) {
@@ -155,6 +155,25 @@ function upkeep(g) {
   if (h.lich > 0) h.lich--;
   // spell tiles recharge in place
   for (const c of g.cells) if (c && c.cd > 0) c.cd--;
+  // reinforcements emerge on telegraphed squares; whatever blocks the square takes 1 and the emergence fails
+  if (g.emerge) {
+    const [x, y] = g.emerge;
+    g.emerge = null;
+    g.reinfLeft--;
+    const blocker = unitAt(g, x, y);
+    if (h.x === x && h.y === y) { emit(g, { t: 'text', x, y, s: 'BLOCKED', c: '#ffcf5a' }); hurtHero(g, 1, null, 'area'); }
+    else if (blocker) { emit(g, { t: 'text', x, y, s: 'BLOCKED', c: '#ffcf5a' }); damageUnit(g, blocker, 1, null, 'blast'); }
+    else {
+      const inB = ((g.floor - 1) % FLOORS_PER_BIOME) + 1;
+      const roster = BIOMES[g.biome].roster.filter(([, m]) => m <= inB).map(([t]) => t);
+      const u = makeUnit(g, roster[rint(g, roster.length)], x, y);
+      emit(g, { t: 'spawn', id: u.id, x, y });
+    }
+  }
+  if (g.reinfLeft > 0 && g.floorTurns % 2 === 1 && enemies(g).length) {
+    const p = randomFree(g, { avoidHero: 3 });
+    if (p) g.emerge = p;
+  }
   // the Dark
   if (g.floorTurns >= g.par) {
     if (g.doomMark) {

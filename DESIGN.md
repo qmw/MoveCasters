@@ -37,7 +37,11 @@ Death or victory → Embers awarded → Sanctum (meta-unlocks) → new run
      or swap it, the attack lands somewhere else. Line/charge intents fire in the marked direction from wherever it stands.
   2. **Moves** toward a square from which you are inside its attack pattern.
   3. **Telegraphs** its next attack on your current square (or line). The marked squares are shown in red with the damage.
+  - Melee attackers **swing**: the target square plus the two squares beside it (relative to the attacker) — the clean
+    dodge is stepping straight away. Ranged attackers (bolts, lobs, charges) hit exactly the marked square/line.
   - **Stunning an enemy cancels its telegraphed attack.** Killing it obviously does too.
+- **Reinforcements (ITB vents)** – on normal floors a rumbling square is marked every 2 turns (4 + floor/3 per floor);
+  an enemy emerges there at the end of the turn. Standing on it (1 damage) or shoving an enemy onto it blocks the emergence.
   - Bosses telegraph big area attacks 1–2 turns ahead (orange countdowns).
 - **Upkeep** – tiles recharge, burning/poison tick, spikes toggle, doom clock ticks.
 
@@ -49,7 +53,7 @@ Goblins **spoil** every tile they walk over (it goes on a 4-turn recharge).
 
 ### Doom clock
 
-Each floor has a **par** (`12 + 2 x enemies` turns). Clear before par → **Swift** (+1 Ember, +1 draft option).
+Each floor has a **par** (`12 + 2 x enemies` turns). There is **no healing between floors** (Blessing *Second Wind* adds 1; skipping a draft heals 1; bosses heal 2). Clear before par → **Swift** (+1 Ember, +1 draft option).
 Take no damage → **Flawless** (+1 Ember). After par, **the Dark rises**: every 4 turns a shade spawns on a telegraphed tile.
 
 ## 4. Hero classes (each has a completely different spell list)
@@ -158,3 +162,11 @@ Human-like playtests are run by agents through `tools/cli.js` (text mode) and re
 - `src/ui/` – canvas renderer (16px art scaled), input (keys, swipe, tap), screens, meta save in localStorage.
 - `tools/` – simulation/balancing bots and a text CLI.
 - Art: 0x72 DungeonTileset II (CC0, itch.io) + Codex-generated spell icons & title art (see `CREDITS.md`).
+
+## 11. Balance log
+
+- v1 (melee, walls): planner 9.9% — Knight-only, Bone Tyrant wall.
+- v2 (spell floor, old AI): planner 80% — far too easy.
+- v3 (ITB telegraphs, single-square): planner 96% — one step dodges everything.
+- v4 (swing telegraphs, reinforcements, budget ×(1.6+0.3·floor) capped at 5+0.6·floor enemies, no inter-floor heal,
+  class fixes): see `docs/balance/`.

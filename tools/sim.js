@@ -2,18 +2,34 @@
 // Headless balance simulator.
 //   node tools/sim.js --bot planner --runs 100 --cls knight --depth 0 [--grimoire all] [--seed 1]
 //   options: --cls all | knight,pyro,... ; --bot random|greedy|planner ; --no-frozen (Frozen path locked)
-//            --plies 3 --beam 8 (planner search) ; --workers N ; --out report.json ; --quiet (no table)
+//            --plies 5 --beam 16 (planner search) ; --workers N ; --out report.json ; --quiet (no table)
+//            --set ENEMIES.bone_tyrant.hp=9 (repeatable; tweak any number in data.js/spells.js for a what-if run)
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { cpus } from 'node:os';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { playRun } from './bots.js';
-import { CLASS_ORDER, ENEMIES } from '../src/core/data.js';
+import * as DATA from '../src/core/data.js';
+import { CLASS_ORDER } from '../src/core/data.js';
 import { SPELLS } from '../src/core/spells.js';
 
+// --set PATH=VALUE: mutate exported data tables (objects are mutable even though bindings are not).
+function applySets(sets) {
+  const roots = { ...DATA, SPELLS };
+  for (const [path, val] of sets || []) {
+    const parts = path.split('.');
+    let o = roots[parts[0]];
+    for (const p of parts.slice(1, -1)) o = o?.[p];
+    if (!o) throw new Error('bad --set path ' + path);
+    o[parts[parts.length - 1]] = isNaN(+val) ? val : +val;
+  }
+}
+
 if (!isMainThread) {
+  let applied = false;
   parentPort.on('message', (job) => {
     if (job === 'exit') process.exit(0);
+    if (!applied) { applySets(job.sets); applied = true; }
     let rec;
     try { rec = playRun(job); } catch (e) { rec = { error: String(e && e.stack || e), seed: job.seed, cls: job.cls }; }
     parentPort.postMessage(rec);
@@ -21,7 +37,7 @@ if (!isMainThread) {
 } else main();
 
 function parseArgs(argv) {
-  const o = { bot: 'planner', runs: 100, cls: 'knight', depth: 0, grimoire: 'none', seed: 1, frozen: true, plies: 3, beam: 8,
+  const o = { bot: 'planner', runs: 100, cls: 'knight', depth: 0, grimoire: 'none', seed: 1, frozen: true, plies: 5, beam: 16, sets: [],
     workers: Math.max(1, cpus().length - 1), out: null, quiet: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i], v = argv[i + 1];
@@ -36,11 +52,12 @@ function parseArgs(argv) {
       case '--beam': o.beam = +v; i++; break;
       case '--workers': o.workers = +v; i++; break;
       case '--out': o.out = v; i++; break;
+      case '--set': { const [k, val] = v.split('='); o.sets.push([k, val]); i++; break; }
       case '--no-frozen': o.frozen = false; break;
       case '--frozen': o.frozen = true; break;
       case '--quiet': o.quiet = true; break;
       case '-h': case '--help':
-        console.log('usage: node tools/sim.js --bot planner|greedy|random --runs N --cls knight|all|a,b --depth D [--grimoire all] [--seed S] [--no-frozen] [--plies 3 --beam 8] [--out file.json]');
+        console.log('usage: node tools/sim.js --bot planner|greedy|random --runs N --cls knight|all|a,b --depth D [--grimoire all] [--seed S] [--no-frozen] [--plies 5 --beam 16] [--set ENEMIES.x.hp=9] [--out file.json]');
         process.exit(0);
     }
   }
@@ -139,7 +156,7 @@ export function printTable(results) {
     ['class', (k) => k], ['win%', (k, a) => a.winRate], ['meanFl', (k, a) => a.meanFloor], ['medDeath', (k, a) => a.medianDeathFloor],
     ['close%', (k, a) => a.closeCallPct], ['turns/fl', (k, a) => a.meanTurnsPerFloor], ['swift%', (k, a) => a.swiftPct],
     ['casts/fl', (k, a) => a.spellsPerFloor], ['dmg/fl', (k, a) => a.dmgPerFloor], ['dense%', (k, a) => a.decisionDensity],
-    ['forced%', (k, a) => a.forcedDamagePct], ['spellKill%', (k, a) => a.killShare.spell], ['bumpKill%', (k, a) => a.killShare.bump],
+    ['forced%', (k, a) => a.forcedDamagePct], ['spellKill%', (k, a) => a.killShare.spell], ['otherKill%', (k, a) => a.killShare.other],
   ];
   const rows = Object.entries(results).map(([k, a]) => cols.map(([, f]) => String(f(k, a))));
   const head = cols.map(([h]) => h);
@@ -168,7 +185,7 @@ async function main() {
   const jobs = [];
   for (const cls of classes) for (let i = 0; i < o.runs; i++) {
     jobs.push({ bot: o.bot, cls, seed: (o.seed * 100003 + i * 7 + 1) >>> 0, depth: o.depth, grimoire: o.grimoire, frozen: o.frozen,
-      plies: o.plies, beam: o.beam });
+      plies: o.plies, beam: o.beam, sets: o.sets });
   }
   const t0 = Date.now();
   const recs = await runJobs(jobs, o.workers);
@@ -179,7 +196,7 @@ async function main() {
   if (o.out) writeFileSync(o.out, JSON.stringify(report, null, 2));
   if (!o.quiet) {
     console.log(`bot=${o.bot} runs=${o.runs}/class depth=${o.depth} grimoire=${o.grimoire} frozen=${o.frozen}` +
-      (o.bot === 'planner' ? ` plies=${o.plies} beam=${o.beam}` : '') + ` (${report.seconds}s)`);
+      (o.bot === 'planner' ? ` plies=${o.plies} beam=${o.beam}` : '') + (o.sets.length ? ` set=${o.sets.map((x) => x.join('=')).join(',')}` : '') + ` (${report.seconds}s)`);
     console.log(printTable(results));
   }
   if (!o.out) console.log('\nJSON:\n' + JSON.stringify(results));

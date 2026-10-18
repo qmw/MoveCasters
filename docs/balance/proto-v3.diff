@@ -1,0 +1,158 @@
+diff -ru /home/piotr/MoveCasters/src/core/ai.js v/src/core/ai.js
+--- /home/piotr/MoveCasters/src/core/ai.js	2026-10-18 18:23:11.509864445 +0200
++++ v/src/core/ai.js	2026-10-18 18:42:17.222491976 +0200
+@@ -8,6 +8,7 @@
+ } from './engine.js';
+ import { rint } from './rng.js';
+ 
++export const VAR = (typeof process !== 'undefined' && process.env.MCV) || '';
+ const STEPS = { orth: ORTH, diag: DIAG, king: KING, knight: KNIGHT, phase: KING };
+ 
+ // Tiles threatened by a pattern centred at (x,y). Line patterns are blocked by walls and units (not the hero).
+@@ -226,7 +227,17 @@
+   const dmg = dmgOverride || def.dmg;
+   const delay = def.slow ? 2 : 1;
+   if (pat === 'line' || pat === 'charge') u.intent = { kind: pat, dir: [Math.sign(dx), Math.sign(dy)], range: def.range || 4, dmg, delay };
+-  else u.intent = { kind: 'rel', offs: [[dx, dy]], dmg, delay };
++  else if (VAR.includes('swing') && !def.ranged) {
++    // ITB-style swing: the target square plus the squares beside it (relative to the attacker)
++    const offs = [[dx, dy]];
++    if (Math.abs(dx) + Math.abs(dy) === 1) offs.push([dx - dy, dy + dx], [dx + dy, dy - dx]);
++    else if (Math.abs(dx) === 1 && Math.abs(dy) === 1) offs.push([dx, 0], [0, dy]);
++    u.intent = { kind: 'rel', offs, dmg, delay };
++  } else if (VAR.includes('area') && !def.ranged) {
++    // ITB-style: melee enemies strike their whole reach pattern
++    const offs = patternTiles(g, pat, u.x, u.y).map(([x, y]) => [x - u.x, y - u.y]);
++    u.intent = { kind: 'rel', offs, dmg, delay };
++  } else u.intent = { kind: 'rel', offs: [[dx, dy]], dmg, delay };
+   if (dx === 0 || dy === 0) u.facing = [Math.sign(dx), Math.sign(dy)];
+   return true;
+ }
+diff -ru /home/piotr/MoveCasters/src/core/data.js v/src/core/data.js
+--- /home/piotr/MoveCasters/src/core/data.js	2026-10-18 18:21:48.124365403 +0200
++++ v/src/core/data.js	2026-10-18 18:53:33.341837680 +0200
+@@ -32,7 +32,7 @@
+     name: 'Ranger', sprite: 'elf_f', hp: 6, color: '#8fd16a',
+     passive: 'Steady Aim — after waiting, your next spell deals +1.',
+     unlock: { kind: 'kills', n: 60, text: 'Slay 60 enemies (all runs)' },
+-    starters: ['arrow', 'vault', 'bear_trap', 'piercing_shot'],
++    starters: ['arrow', 'hawk', 'bear_trap', 'piercing_shot'],
+   },
+   geo: {
+     name: 'Geomancer', sprite: 'dwarf_m', hp: 6, color: '#c8a26b',
+diff -ru /home/piotr/MoveCasters/src/core/engine.js v/src/core/engine.js
+--- /home/piotr/MoveCasters/src/core/engine.js	2026-10-18 18:04:10.342459992 +0200
++++ v/src/core/engine.js	2026-10-18 19:04:42.850241826 +0200
+@@ -38,7 +38,7 @@
+   const t = tile(g, x, y);
+   if (t === T.LAVA) return false;
+   if (t === T.SPIKES && spikesUp(g, x, y, g.turn + 1)) return false;
+-  if (g.fx.burn[key(x, y)]) return false;
++  if (g.fx.burn[key(x, y)] && !(process.env.MCV || '').includes('burnwalk')) return false;
+   if (g.fx.trap[key(x, y)] && !g.fx.trap[key(x, y)].known) return true;
+   return true;
+ }
+diff -ru /home/piotr/MoveCasters/src/core/game.js v/src/core/game.js
+--- /home/piotr/MoveCasters/src/core/game.js	2026-10-18 18:23:11.510000617 +0200
++++ v/src/core/game.js	2026-10-18 18:32:54.965365093 +0200
+@@ -1,5 +1,5 @@
+ // Run state machine and turn loop. Pure & deterministic given the seed.
+-import { T, DIRS, CLASSES, RELICS, TOTAL_FLOORS, FLOORS_PER_BIOME } from './data.js';
++import { T, DIRS, CLASSES, RELICS, TOTAL_FLOORS, FLOORS_PER_BIOME, BIOMES } from './data.js';
+ import { rnd, rint, pick, shuffle, hashSeed } from './rng.js';
+ import {
+   key, tile, setTile, standable, unitAt, enemies, allies, emit, damageUnit, hurtHero, healHero, spikesUp, manhattan,
+@@ -155,6 +155,23 @@
+   if (h.lich > 0) h.lich--;
+   // spell tiles recharge in place
+   for (const c of g.cells) if (c && c.cd > 0) c.cd--;
++  // PROTOTYPE: telegraphed reinforcements (MCV=reinfN:K -> every N turns, K per floor + floor/4)
++  const rm = /reinf(\d+):(\d+)/.exec(process.env.MCV || '');
++  if (rm && !g.isBoss) {
++    const every = +rm[1];
++    if (g.floorTurns === 1) { g.reinfLeft = +rm[2] + Math.floor((g.floor - 1) / 3); g.emerge = null; }
++    if (g.emerge) {
++      const [x, y] = g.emerge; g.emerge = null;
++      if (h.x === x && h.y === y) hurtHero(g, 1, null, 'area');
++      else if (!occupied(g, x, y)) {
++        const B = BIOMES[g.biome]; const inB = ((g.floor - 1) % 3) + 1;
++        const roster = B.roster.filter(([, m]) => m <= inB).map(([t]) => t);
++        const u = makeUnit(g, roster[rint(g, roster.length)], x, y); u.stun = 0; g.reinfLeft--;
++        emit(g, { t: 'spawn', id: u.id, x, y });
++      }
++    }
++    if (g.reinfLeft > 0 && g.floorTurns % every === every - 1) { const p = randomFree(g, { avoidHero: 3 }); if (p) g.emerge = p; }
++  }
+   // the Dark
+   if (g.floorTurns >= g.par) {
+     if (g.doomMark) {
+diff -ru /home/piotr/MoveCasters/src/core/gen.js v/src/core/gen.js
+--- /home/piotr/MoveCasters/src/core/gen.js	2026-10-18 18:02:07.970547535 +0200
++++ v/src/core/gen.js	2026-10-18 19:04:42.850197630 +0200
+@@ -91,6 +91,8 @@
+     u.timer = 0;
+   }
+   let budget = boss ? 1 + floor * 0.15 : 2.6 + floor * 0.55;
++  { const bm = /bud([\d.]+)/.exec(process.env.MCV || ''); if (bm) budget *= +bm[1];
++    const bs = /bs([\d.]+):([\d.]+)/.exec(process.env.MCV || ''); if (bs && !boss) budget *= +bs[1] + +bs[2] * floor; }
+   if (d >= 1) budget += 1;
+   const roster = B.roster.filter(([, min]) => min <= inBiome).map(([t]) => t);
+   if (d >= 6 && !roster.includes('goblin')) { const s = spots(); if (s.length) { const p = pick(g, s); makeUnit(g, 'goblin', p[0], p[1]); } }
+diff -ru /home/piotr/MoveCasters/src/core/spells.js v/src/core/spells.js
+--- /home/piotr/MoveCasters/src/core/spells.js	2026-10-18 18:21:48.123710771 +0200
++++ v/src/core/spells.js	2026-10-18 19:04:42.850326718 +0200
+@@ -165,7 +165,7 @@
+       bolt(g, [u.x, u.y - 6], [u.x, u.y], '#ff5a1f');
+       aoe(g, [[u.x, u.y], ...tiles], '#ff5a1f');
+       const ns = tiles.map(([x, y]) => enemyAt(g, x, y)).filter(Boolean);
+-      hit(g, u, 3 + c.P);
++      hit(g, u, 2 + c.P);
+       ns.forEach((v) => hit(g, v, 1 + c.P));
+       ignite(g, u.x, u.y);
+     } },
+@@ -229,8 +229,8 @@
+   // ======================= RANGER =======================
+   arrow: { cls: 'ranger', tier: 's', name: 'Arrow', cd: 1, freq: 3, icon: 'weapon_arrow',
+     desc: 'The first enemy in a line takes 1.',
+-    cast(g, c) { shootFirst(g, c, 99, 1 + c.P, '#d9f0a3'); } },
+-  vault: { cls: 'ranger', tier: 's', name: 'Vault', cd: 3, icon: 'weapon_bow',
++    cast(g, c) { shootFirst(g, c, 99, ((process.env.MCV || '').includes('arrow2') ? 2 : 1) + c.P, '#d9f0a3'); } },
++  vault: { cls: 'ranger', tier: 'b', name: 'Vault', cd: 3, icon: 'weapon_bow',
+     desc: 'Leap 2 squares backward, then loose an arrow forward for 1.',
+     cast(g, c) {
+       const h = H(g);
+@@ -270,7 +270,7 @@
+         hit(g, firstEnemyInRay(g, sx, sy, c.dx, c.dy), 2 + c.P);
+       }
+     } },
+-  hawk: { cls: 'ranger', tier: 'b', name: 'Hawk', cd: 4, icon: 'angel_idle_anim',
++  hawk: { cls: 'ranger', tier: 's', name: 'Hawk', cd: 4, icon: 'angel_idle_anim',
+     desc: 'Your hawk strikes the nearest enemy for 2 and stuns it.',
+     cast(g, c) { const h = H(g), u = nearestEnemy(g, h.x, h.y); if (!u) return; bolt(g, [h.x, h.y], [u.x, u.y], '#fff'); hit(g, u, 2 + c.P); if (u.hp > 0) u.stun = Math.max(u.stun, 1); } },
+   snare_net: { cls: 'ranger', tier: 'b', name: 'Snare Net', cd: 5, icon: 'wall_hole_1',
+@@ -525,14 +525,14 @@
+     desc: 'First enemy in a line takes 1 and is Cursed 3 turns (takes double damage).',
+     cast(g, c) { const u = shootFirst(g, c, 99, 1 + c.P, '#7de0c8'); if (u && u.hp > 0) u.curse = Math.max(u.curse, 3 + c.lv); } },
+   corpse_explosion: { cls: 'hexer', tier: 'b', name: 'Corpse Explosion', cd: 5, icon: 'bomb_f1',
+-    desc: 'Every corpse on the floor explodes: 2 damage to its 8 neighbours.',
++    desc: 'Every corpse on the floor explodes: 1 damage to its 8 neighbours.',
+     cast(g, c) {
+       const cs = Object.keys(g.fx.corpse).map((k) => k.split(',').map(Number));
+       g.fx.corpse = {};
+       for (const [cx, cy] of cs) {
+         const tiles = around8(cx, cy);
+         aoe(g, tiles, '#7de0c8');
+-        tiles.forEach(([x, y]) => hit(g, enemyAt(g, x, y), 2 + c.P));
++        tiles.forEach(([x, y]) => hit(g, enemyAt(g, x, y), 1 + c.P));
+       }
+     } },
+   bone_wall: { cls: 'hexer', tier: 'b', name: 'Bone Wall', cd: 4, icon: 'skull',
+@@ -555,7 +555,7 @@
+       hit(g, u, 2 + c.P);
+       c.moveHero(ux, uy, c.dx, c.dy, false);
+     } },
+-  wither: { cls: 'hexer', tier: 'b', name: 'Wither', cd: 6, icon: 'flask_big_green',
++  wither: { cls: 'hexer', tier: 'l', name: 'Wither', cd: 6, icon: 'flask_big_green',
+     desc: 'Every enemy takes 1 (cursed enemies take double, as usual).',
+     cast(g, c) { const us = enemies(g); aoe(g, us.map((u) => [u.x, u.y]), '#7de0c8'); us.forEach((u) => hit(g, u, 1 + c.P)); } },
+   grave_grasp: { cls: 'hexer', tier: 'l', name: 'Grave Grasp', cd: 5, icon: 'wall_hole_1',

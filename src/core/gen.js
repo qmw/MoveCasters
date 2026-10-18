@@ -90,12 +90,13 @@ export function buildFloor(g) {
     if (d >= 5) { u.hp = u.maxHp = Math.ceil(u.hp * 1.25); }
     u.timer = 0;
   }
-  let budget = boss ? 1 + floor * 0.15 : 2.6 + floor * 0.55;
+  let budget = boss ? 1 + floor * 0.15 : (2.6 + floor * 0.55) * (1.6 + 0.3 * floor) * (biome === 'warrens' ? 0.8 : 1) * (biome === 'frozen' ? 1.2 : 1);
   if (d >= 1) budget += 1;
   const roster = B.roster.filter(([, min]) => min <= inBiome).map(([t]) => t);
   if (d >= 6 && !roster.includes('goblin')) { const s = spots(); if (s.length) { const p = pick(g, s); makeUnit(g, 'goblin', p[0], p[1]); } }
   let guard = 0;
-  while (budget > 0.6 && guard++ < 30) {
+  const cap = boss ? 6 : Math.round(5 + floor * 0.6);
+  while (budget > 0.6 && guard++ < 40 && g.units.length < cap) {
     const type = pick(g, roster);
     const cost = ENEMIES[type].cost;
     if (cost > budget + 0.4) { if (roster.every((t) => ENEMIES[t].cost > budget + 0.4)) break; continue; }
@@ -119,4 +120,7 @@ export function buildFloor(g) {
   g.hero.block = 0; g.hero.steelUsed = false; g.hero.riposte = 0; g.hero.root = 0; g.hero.invis = 0;
   g.hero.lich = 0; g.hero.harvested = false; g.echoUsed = false;
   g.turn = 0;
+  // Into-the-Breach style reinforcements: a telegraphed emergence square every 2 turns
+  g.reinfLeft = boss ? 0 : 4 + Math.floor(floor / 3);
+  g.emerge = null;
 }
