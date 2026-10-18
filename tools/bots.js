@@ -35,7 +35,8 @@ export function draftChoice(g) {
   let best = -1, bestV = 0, slot = null;
   opts.forEach((o, i) => {
     let v;
-    if (o.kind === 'empower') v = isDamageSpell(h.deck[o.slot].id) ? 3.5 : 2;
+    if (o.kind === 'vigor') v = 1.5;
+    else if (o.kind === 'empower') v = isDamageSpell(h.deck[o.slot].id) ? 3.5 : 2;
     else v = full ? spellValue(o.id) - worstVal : spellValue(o.id);
     if (v > bestV) { bestV = v; best = i; slot = o.kind === 'spell' && full ? worstSlot : null; }
   });

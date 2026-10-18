@@ -7,6 +7,17 @@ import {
   nearestEnemy, damageUnit, killUnit, pushUnit, healHero, hurtHero, emit, makeUnit, standable, manhattan, cheb, cellAt, cellReady,
 } from './engine.js';
 
+// Nearest enemy in the half-plane ahead of the step (keeps approach direction meaningful for auto-target spells).
+function nearestAhead(g, c, maxDist = 99) {
+  const h = g.hero;
+  let best = null, bd = 1e9;
+  for (const u of enemies(g)) {
+    if ((u.x - h.x) * c.dx + (u.y - h.y) * c.dy <= 0) continue;
+    const d = manhattan(u.x, u.y, h.x, h.y);
+    if (d <= maxDist && d < bd) { bd = d; best = u; }
+  }
+  return best;
+}
 const hit = (g, u, n) => u && damageUnit(g, u, n, g.hero, 'spell');
 const perp = (dx, dy) => [[-dy, dx], [dy, -dx]];
 const bolt = (g, from, to, c) => emit(g, { t: 'bolt', from, to, c });
@@ -73,10 +84,10 @@ export const SPELLS = {
       if (tx !== h.x || ty !== h.y) c.moveHero(tx, ty, c.dx, c.dy, true);
       if (target && target.hp > 0) { hit(g, target, 2 + c.P); if (target.hp > 0) target.stun = Math.max(target.stun, 1); }
     } },
-  holy_nova: { cls: 'knight', tier: 's', name: 'Holy Nova', cd: 5, icon: 'flask_big_yellow',
-    desc: 'Every enemy within 3 squares takes 1.',
+  holy_nova: { cls: 'knight', tier: 's', name: 'Holy Nova', cd: 6, freq: 1, icon: 'flask_big_yellow',
+    desc: 'Every enemy within 2 squares takes 1.',
     cast(g, c) {
-      const h = H(g), us = enemies(g).filter((u) => manhattan(u.x, u.y, h.x, h.y) <= 3);
+      const h = H(g), us = enemies(g).filter((u) => manhattan(u.x, u.y, h.x, h.y) <= 2);
       aoe(g, us.map((u) => [u.x, u.y]), '#fff3a0');
       us.forEach((u) => hit(g, u, 1 + c.P));
     } },
@@ -154,10 +165,10 @@ export const SPELLS = {
       tiles.forEach(([x, y]) => { ignite(g, x, y); hit(g, enemyAt(g, x, y), 1 + c.P); });
     } },
   heat_shield: { cls: 'pyro', tier: 's', name: 'Heat Shield', cd: 5, icon: 'flask_big_yellow',
-    desc: 'Gain 1 Block. Adjacent enemies (incl. diagonal) are stunned and catch fire.',
+    desc: 'Gain 1 Block. Adjacent enemies (incl. diagonal) catch fire.',
     cast(g, c) {
       const h = H(g); h.block += 1 + c.lv;
-      KING.forEach(([dx, dy]) => { const u = enemyAt(g, h.x + dx, h.y + dy); if (u) { ignite(g, u.x, u.y); u.stun = Math.max(u.stun, 1); } });
+      KING.forEach(([dx, dy]) => { const u = enemyAt(g, h.x + dx, h.y + dy); if (u) ignite(g, u.x, u.y); });
       aoe(g, around8(h.x, h.y), '#ffd36b');
     } },
   meteor: { cls: 'pyro', tier: 'b', name: 'Meteor', cd: 6, icon: 'bomb_f0',
@@ -262,7 +273,7 @@ export const SPELLS = {
       const { us } = pierce(g, c, 99, 1 + c.P, '#d9f0a3');
       if (us[0] && us[0].hp > 0) hit(g, us[0], 1);
     } },
-  volley: { cls: 'ranger', tier: 's', name: 'Volley', cd: 5, icon: 'weapon_throwing_axe',
+  volley: { cls: 'ranger', tier: 's', name: 'Volley', cd: 4, icon: 'weapon_throwing_axe',
     desc: 'Three parallel arrows (ahead and to each side): first enemy in each takes 2.',
     cast(g, c) {
       const h = H(g);
@@ -274,9 +285,9 @@ export const SPELLS = {
         hit(g, firstEnemyInRay(g, sx, sy, c.dx, c.dy), 2 + c.P);
       }
     } },
-  hawk: { cls: 'ranger', tier: 's', name: 'Hawk', cd: 4, icon: 'angel_idle_anim',
-    desc: 'Your hawk strikes the nearest enemy for 2 and stuns it.',
-    cast(g, c) { const h = H(g), u = nearestEnemy(g, h.x, h.y); if (!u) return; bolt(g, [h.x, h.y], [u.x, u.y], '#fff'); hit(g, u, 2 + c.P); if (u.hp > 0) u.stun = Math.max(u.stun, 1); } },
+  hawk: { cls: 'ranger', tier: 's', name: 'Hawk', cd: 3, icon: 'angel_idle_anim',
+    desc: 'Your hawk strikes the nearest enemy AHEAD of you (in the direction you stepped) for 2 and stuns it.',
+    cast(g, c) { const h = H(g), u = nearestAhead(g, c); if (!u) return; bolt(g, [h.x, h.y], [u.x, u.y], '#fff'); hit(g, u, 2 + c.P); if (u.hp > 0) u.stun = Math.max(u.stun, 1); } },
   snare_net: { cls: 'ranger', tier: 'b', name: 'Snare Net', cd: 5, icon: 'wall_hole_1',
     desc: 'Every enemy in a line is stunned 1 turn and rooted 3.',
     cast(g, c) { const { us } = pierce(g, c, 99, 0, '#ffd36b'); us.forEach((u) => { u.stun = Math.max(u.stun, 1 + c.lv); u.root = Math.max(u.root, 3); }); } },
@@ -373,9 +384,9 @@ export const SPELLS = {
       const h = H(g); aoe(g, around8(h.x, h.y), '#c8a26b');
       KING.forEach(([dx, dy]) => { const u = enemyAt(g, h.x + dx, h.y + dy); if (u) pushUnit(g, u, dx, dy, 1 + c.lv); });
     } },
-  earth_spike: { cls: 'geo', tier: 's', name: 'Earth Spike', cd: 3, icon: 'floor_spikes_anim',
-    desc: 'The nearest enemy within 4 takes 2.',
-    cast(g, c) { const h = H(g), u = nearestEnemy(g, h.x, h.y, 4); if (!u) return; aoe(g, [[u.x, u.y]], '#c8a26b'); hit(g, u, 2 + c.P); } },
+  earth_spike: { cls: 'geo', tier: 's', name: 'Earth Spike', cd: 2, icon: 'floor_spikes_anim',
+    desc: 'The nearest enemy ahead of you (in the direction you stepped, within 6) takes 2.',
+    cast(g, c) { const h = H(g), u = nearestAhead(g, c, 6); if (!u) return; aoe(g, [[u.x, u.y]], '#c8a26b'); hit(g, u, 2 + c.P); } },
   sinkhole: { cls: 'geo', tier: 'b', name: 'Sinkhole', cd: 6, icon: 'hole',
     desc: 'The square 2 ahead collapses into a pit for 6 turns. An enemy there falls (bosses take 3).',
     cast(g, c) {
@@ -553,7 +564,7 @@ export const SPELLS = {
       aoe(g, tiles, '#e8e0c8');
     } },
   soul_swap: { cls: 'hexer', tier: 'b', name: 'Soul Swap', cd: 4, freq: 1, icon: 'doors_leaf_open',
-    desc: 'Swap places with the farthest enemy; it takes 1.',
+    desc: 'Swap places with the farthest enemy (not bosses); it takes 1.',
     cast(g, c) {
       const h = H(g);
       const u = enemies(g).filter((v) => !v.boss).sort((a, b) => manhattan(b.x, b.y, h.x, h.y) - manhattan(a.x, a.y, h.x, h.y))[0];

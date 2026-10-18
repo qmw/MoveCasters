@@ -309,6 +309,7 @@ function summon(g, type, n, near) {
   for (let i = 0; i < n && i < spots.length; i++) {
     const u = makeUnit(g, type, spots[i][0], spots[i][1]);
     u.stun = 1;
+    u.minion = true;
     emit(g, { t: 'spawn', id: u.id, x: u.x, y: u.y });
   }
 }

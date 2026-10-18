@@ -15,7 +15,7 @@
 
 ```
 Run start → pick hero → Floor 1..12 (4 biomes x 3 floors, 3rd floor = boss)
-  each floor: clear all enemies → draft 1 of 3 spells (add / replace a deck slot / empower) → small heal
+  each floor: clear all enemies → draft 1 of 3+ spells (add / replace a deck slot / empower; Vigor +1 max HP when the pool runs dry)
   each boss: relic choice (1 of 3) + heal
 Death or victory → Embers awarded → Sanctum (meta-unlocks) → new run
 ```
@@ -30,7 +30,8 @@ Death or victory → Embers awarded → Sanctum (meta-unlocks) → new run
   recharged) in the direction you last moved. Block caps at 3.
   - Moving onto a *ready* tile **casts** its spell in the movement direction; that tile then **recharges in place**
     for the spell's cooldown (a faded icon with a countdown). Spent tiles can be walked over freely — they are your "quiet" moves.
-  - You cannot move into enemies (there is no bump attack). All damage comes from spells.
+  - There is no melee. Walking into an enemy **shoves** it 1 square (no damage, no cast; bosses can't be shoved). Its
+    telegraphed swing moves with it — the escape hatch when pinned against a wall.
   - If a spell moves you (Charge, Vault, Swap…) and you land on a ready tile, that tile casts too (max chain 3).
 - **Enemy phase (Into the Breach style)** – each enemy, in order:
   1. **Resolves** the attack it telegraphed last turn: it strikes the marked squares, hitting *whatever* is there —
@@ -42,7 +43,7 @@ Death or victory → Embers awarded → Sanctum (meta-unlocks) → new run
     dodge is stepping straight away. Ranged attackers (bolts, lobs, charges) hit exactly the marked square/line.
   - **Stunning an enemy cancels its telegraphed attack.** Killing it obviously does too.
 - **Reinforcements (ITB vents)** – on normal floors a rumbling square is marked every 2 turns (4 + floor/3 per floor);
-  an enemy emerges there at the end of the turn. Standing on it (1 damage) or shoving an enemy onto it blocks the emergence.
+  an enemy emerges there at the end of the turn (paused while the board holds more than ~1 enemy per 5 squares). Standing on it (1 damage) or shoving an enemy onto it blocks the emergence.
   - Bosses telegraph big area attacks 1–2 turns ahead (orange countdowns).
 - **Upkeep** – tiles recharge, burning/poison tick, spikes toggle, doom clock ticks.
 
@@ -89,7 +90,7 @@ Movement uses pathfinding with the listed step style.
 |---|---|---|---|---|---|
 | Skeleton | Crypt | 2 | 4 orthogonal neighbours (Rook-1) | 1 orth | — |
 | Zombie | Crypt | 3 | orth neighbours | 1 orth every other turn | slow, tanky |
-| Imp | Crypt/Inferno | 1 | 4 diagonal neighbours (Bishop-1) | 1 diag | — |
+| Imp | Crypt/Inferno | 1 | 4 diagonal neighbours (Bishop-1) | 1 any | — |
 | Bone Caster (necromancer) | Crypt | 2 | orth line, range 4, blocked by walls | keeps distance | ranged |
 | Slug | Swamp | 3 | orth neighbours | 1 orth | leaves slime |
 | Spitter (swampy) | Swamp | 2 | lobs at tiles exactly 2 away orth (jumps over things) | 1 orth | mortar |
@@ -105,7 +106,7 @@ Movement uses pathfinding with the listed step style.
 | Shade | any (doom) | 1 | 8 neighbours | 1 any, phases through walls | spawned by doom clock |
 
 Bosses (32x36 sprites, occupy 1 tile but have patterns):
-- **Bone Tyrant** (big_zombie, Crypt): 11 HP, orth neighbours for 2; every 4th turn raises 2 skeletons.
+- **Bone Tyrant** (big_zombie, Crypt): 11 HP (×1.5), orth neighbours for 2; every 4th turn raises 1 skeleton (2 at Depth 5+).
 - **Mother Slug** (slug scaled, Swamp): 12 HP, spits slime lines; splits into Mudlings at half HP.
 - **Frost Colossus** (ice_zombie scaled, Frozen): 13 HP, slams a 3x3 telegraphed area every 3rd turn, otherwise moves.
 - **Orc Warlord** (ogre, Warrens): 15 HP, Rook charge range 5 for 3 dmg; summons goblins.
@@ -176,3 +177,8 @@ Human-like playtests are run by agents through `tools/cli.js` (text mode) and re
   capped at 3 corpses, Pyromancer 4 HP, Shadowstep/Swap deal 1+Backstab): planner ≈60% (classes 33–85%), deaths spread
   over all floors; greedy dies floors 1–5. The planner is superhuman (5-ply, perfect info), so a strong human should sit
   between the two bots. Tunables live in `BALANCE` (data.js).
+- v6 (after 2nd playtest round): **shove** (walk into an enemy to push it 1, no damage), crowd cap for reinforcements,
+  drafts always full (Vigor fallback), Hawk/Earth Spike target ahead of your step, boss minions die with the boss,
+  imps may step orthogonally, Block before Steel, boss heal 3, elites 25% (none on biome-entry floors), boss HP ramps
+  ×1.2→×1.5. Planner ≈75% (superhuman), greedy dies floors 1–8 (mean 4.1). Agent playtesters reached floors 3–8:
+  the base game is tuned for a good human to sometimes win; Depth 1–10 is the expert ladder.

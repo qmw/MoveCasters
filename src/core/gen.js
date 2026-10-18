@@ -87,7 +87,9 @@ export function buildFloor(g) {
   const spots = () => freeTiles(g, { avoidHero: 4 }).filter(([, y]) => y < g.map.h - 3);
   if (boss) {
     const u = makeUnit(g, B.boss, g.map.w >> 1, 2);
-    u.hp = u.maxHp = Math.ceil(u.hp * BALANCE.bossHpMul * (d >= 5 ? 1.25 : 1));
+    // boss HP ramps: first boss x1.2 ... last boss x1.5 (bossHpMul)
+    const ramp = 1.2 + (BALANCE.bossHpMul - 1.2) * ((floor / FLOORS_PER_BIOME - 1) / 3);
+    u.hp = u.maxHp = Math.ceil(u.hp * ramp * (d >= 5 ? 1.25 : 1));
     u.timer = 0;
   }
   let budget = boss ? 1 + floor * 0.15 : (2.6 + floor * 0.55) * (BALANCE.budMul + BALANCE.budSlope * floor) * (biome === 'warrens' ? 0.8 : 1) * (biome === 'frozen' ? 1.2 : 1);
@@ -106,7 +108,7 @@ export function buildFloor(g) {
     if (!s.length) break;
     const [x, y] = pick(g, s);
     const u = makeUnit(g, type, x, y);
-    if (rnd(g) < (d >= 2 ? 0.3 : 0) + BALANCE.eliteChance) { u.hp++; u.maxHp++; u.elite = true; }
+    if (rnd(g) < (d >= 2 ? 0.3 : 0) + (biomeEntry ? 0 : BALANCE.eliteChance)) { u.hp++; u.maxHp++; u.elite = true; }
     budget -= cost;
   }
   for (const u of g.units) u.facing = [0, 1];

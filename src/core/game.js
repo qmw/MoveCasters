@@ -3,7 +3,7 @@ import { T, DIRS, CLASSES, RELICS, TOTAL_FLOORS, FLOORS_PER_BIOME, BIOMES, BALAN
 import { rnd, rint, pick, shuffle, hashSeed } from './rng.js';
 import {
   key, tile, setTile, standable, unitAt, enemies, allies, emit, damageUnit, hurtHero, healHero, spikesUp, manhattan,
-  randomFree, makeUnit, occupied, cellAt, cellReady,
+  randomFree, makeUnit, occupied, cellAt, cellReady, pushUnit,
 } from './engine.js';
 import { SPELLS, spellsOf, spellCd } from './spells.js';
 import { enemyTurn, allyTurn } from './ai.js';
@@ -89,7 +89,13 @@ export function act(g, action, opts = {}) {
     const [dx, dy] = DIRS[action];
     const tx = h.x + dx, ty = h.y + dy;
     const u = unitAt(g, tx, ty);
-    if (u && u.team === 'enemy') return false; // no melee: all damage comes from spells
+    if (u && u.team === 'enemy') {
+      // no melee: walking into an enemy SHOVES it 1 square (no damage). Its telegraph moves with it.
+      const nx = u.x + dx, ny = u.y + dy;
+      if (u.boss || !standable(g, nx, ny) || occupied(g, nx, ny)) return false;
+      emit(g, { t: 'text', x: u.x, y: u.y, s: 'SHOVE', c: '#ffffff' });
+      pushUnit(g, u, dx, dy, 1);
+    } else
     if (h.root > 0) {
       h.root--;
       emit(g, { t: 'text', x: h.x, y: h.y, s: 'STUCK', c: '#7dff6b' });
@@ -177,7 +183,8 @@ function upkeep(g) {
       emit(g, { t: 'spawn', id: u.id, x, y });
     }
   }
-  if (g.reinfLeft > 0 && g.floorTurns % BALANCE.reinfEvery === 1 % BALANCE.reinfEvery && enemies(g).some((u) => u.type !== 'shade')) {
+  const crowdCap = Math.round(g.map.w * g.map.h * 0.11); // ~ (interior area) / 5
+  if (g.reinfLeft > 0 && enemies(g).length < crowdCap && g.floorTurns % BALANCE.reinfEvery === 1 % BALANCE.reinfEvery && enemies(g).some((u) => u.type !== 'shade')) {
     const p = randomFree(g, { avoidHero: 3 });
     if (p) g.emerge = p;
   }
@@ -241,9 +248,11 @@ function makeDraft(g, swift) {
   let n = 3 + (g.meta.blessings.insight ? 1 : 0) + (h.relics.includes('lucky_coin') ? 1 : 0) + (swift ? 1 : 0) - (g.depth >= 7 ? 1 : 0);
   const pool = shuffle(g, draftPool(g));
   const opts = [];
-  const upg = h.deck.map((d, i) => (d.lv ? -1 : i)).filter((i) => i >= 0);
-  if (upg.length && rnd(g) < 0.6) opts.push({ kind: 'empower', slot: pick(g, upg) });
+  const upg = shuffle(g, h.deck.map((d, i) => (d.lv ? -1 : i)).filter((i) => i >= 0));
+  if (upg.length && rnd(g) < 0.6) opts.push({ kind: 'empower', slot: upg.pop() });
   while (opts.length < n && pool.length) opts.push({ kind: 'spell', id: pool.pop() });
+  while (opts.length < n && upg.length) opts.push({ kind: 'empower', slot: upg.pop() });
+  if (opts.length < n) opts.push({ kind: 'vigor' });
   return { opts, swift };
 }
 
@@ -261,6 +270,7 @@ export function chooseDraft(g, choice, slot = null) {
   if (choice >= 0) {
     const o = g.draft.opts[choice];
     if (o.kind === 'empower') h.deck[o.slot].lv = 1;
+    else if (o.kind === 'vigor') { h.maxHp++; healHero(g, 2); }
     else if (h.deck.length < h.slots) h.deck.push({ id: o.id, lv: 0 });
     else { if (slot === null || slot < 0 || slot >= h.deck.length) return false; h.deck[slot] = { id: o.id, lv: 0 }; }
   } else healHero(g, 1);
@@ -291,7 +301,7 @@ export function chooseRelic(g, i) {
     if (id === 'glass_lens') { h.maxHp = Math.max(1, h.maxHp - 2); h.hp = Math.min(h.hp, h.maxHp); }
   }
   g.relicOpts = null;
-  healHero(g, 2);
+  healHero(g, 3);
   afterRelic(g);
   return true;
 }

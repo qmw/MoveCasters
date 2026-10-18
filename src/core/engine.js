@@ -137,7 +137,12 @@ export function killUnit(g, u, kind) {
   g.stats.kills++;
   g.turnKills = (g.turnKills || 0) + 1;
   g.stats.killsByType[u.type] = (g.stats.killsByType[u.type] || 0) + 1;
-  if (u.boss) g.stats.bossKills.push(u.type);
+  if (u.boss) {
+    g.stats.bossKills.push(u.type);
+    // the boss's minions crumble with it
+    for (const v of g.units.filter((w) => w.minion && w.team === 'enemy')) { emit(g, { t: 'death', id: v.id, x: v.x, y: v.y, type: v.type }); }
+    g.units = g.units.filter((w) => !(w.minion && w.team === 'enemy'));
+  }
   const k = key(u.x, u.y);
   if (standable(g, u.x, u.y)) g.fx.corpse[k] = 1;
   if (g.cls === 'pyro' && (kind === 'spell' || kind === 'burn')) g.fx.burn[k] = 3;
@@ -178,16 +183,16 @@ export function hurtHero(g, n, attacker, kind = 'enemy') {
     damageUnit(g, attacker, 3, h, 'spell');
     return 0;
   }
-  if (g.cls === 'knight' && !h.steelUsed && kind !== 'self') {
-    h.steelUsed = true;
-    emit(g, { t: 'text', x: h.x, y: h.y, s: 'STEEL', c: '#c9d4e8' });
-    return 0;
-  }
   if (h.block > 0 && kind !== 'self') {
     const b = Math.min(h.block, n);
     h.block -= b; n -= b;
     emit(g, { t: 'text', x: h.x, y: h.y, s: 'BLOCK ' + b, c: '#8ecbff' });
     if (n <= 0) return 0;
+  }
+  if (g.cls === 'knight' && !h.steelUsed && kind !== 'self') {
+    h.steelUsed = true;
+    emit(g, { t: 'text', x: h.x, y: h.y, s: 'STEEL', c: '#c9d4e8' });
+    return 0;
   }
   h.hp -= n;
   g.stats.dmgTaken += n;

@@ -48,7 +48,7 @@ export const CLASSES = {
   },
   hexer: {
     name: 'Hexer', sprite: 'wizzard_f', hp: 5, color: '#7de0c8',
-    passive: 'Harvest — foes leave corpses. Step on a corpse to heal 1 (once per floor).',
+    passive: 'Harvest — foes leave corpses. Step on a corpse to heal 1 (once per floor). Slime does not affect you.',
     unlock: { kind: 'boss', id: 'orc_warlord', text: 'Defeat the Orc Warlord' },
     starters: ['bone_spear', 'life_drain', 'raise_dead', 'curse'],
   },
@@ -61,8 +61,8 @@ export const ENEMIES = {
     desc: 'Hits the 4 orthogonal squares.' },
   zombie: { name: 'Zombie', sprite: 'tiny_zombie_idle', hp: 3, dmg: 1, pattern: 'orth1', move: 'orth', slow: true, cost: 1.3,
     desc: 'Slow: acts every other turn. Tough.' },
-  imp: { name: 'Imp', sprite: 'imp_idle', hp: 1, dmg: 1, pattern: 'diag1', move: 'diag', cost: 0.9,
-    desc: 'Moves and strikes diagonally, like a bishop.' },
+  imp: { name: 'Imp', sprite: 'imp_idle', hp: 1, dmg: 1, pattern: 'diag1', move: 'king', cost: 0.9,
+    desc: 'Strikes diagonally, like a bishop.' },
   caster: { name: 'Bone Caster', sprite: 'necromancer', hp: 2, dmg: 1, pattern: 'line', range: 4, move: 'orth', ranged: true, cost: 1.8,
     desc: 'Fires bolts along rows and columns (range 4). Walls and bodies block.' },
   slug: { name: 'Slug', sprite: 'slug', hp: 3, dmg: 1, pattern: 'orth1', move: 'orth', slime: true, cost: 1.4,
@@ -164,9 +164,9 @@ export const DEPTH_MODS = [
 export const BALANCE = {
   capBase: 4, capSlope: 1.3, // max starting enemies = capBase + capSlope * floor
   budMul: 1.6, budSlope: 0.3, // budget multiplier = budMul + budSlope * floor
-  reinfBase: 3, reinfEvery: 2, reinfSlope: 0.6, // reinforcements per floor = reinfBase + reinfSlope * floor
+  reinfBase: 2, reinfEvery: 2, reinfSlope: 0.6, // reinforcements per floor = reinfBase + reinfSlope * floor
   waitCast: 1, // 1 = waiting re-casts your recharged tile
-  bossHpMul: 1.5, eliteChance: 0.4, // HP multiplier for bosses; chance an enemy is elite (+1 HP) at depth 0
+  bossHpMul: 1.5, eliteChance: 0.25, // HP multiplier for bosses; chance an enemy is elite (+1 HP) at depth 0
 };
 
 export const FLOORS_PER_BIOME = 3;

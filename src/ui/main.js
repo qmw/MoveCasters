@@ -465,7 +465,12 @@ function draftModal() {
   const cards = $('#m-cards');
   d.opts.forEach((o, i) => {
     let c;
-    if (o.kind === 'empower') {
+    if (o.kind === 'vigor') {
+      c = el('div', 'card');
+      c.append(iconCanvas(sprite('flask_big_red'), 48));
+      c.append(el('div', 'nm', 'Vigor'));
+      c.append(el('div', 'ds', '+1 max HP and heal 2.'));
+    } else if (o.kind === 'empower') {
       const s = h.deck[o.slot];
       c = spellCard(s.id, '★ EMPOWER: +1 power, -1 cooldown');
       c.classList.add('empower');
@@ -496,7 +501,7 @@ function draftModal() {
 function finishDraft() { closeModal(); saveRun(); updateHud(); afterTurn(); }
 
 function relicModal() {
-  modal(`<h2>Boss defeated!</h2><p>Choose a relic. You also heal 2.</p><div class="cards" id="m-cards"></div>`);
+  modal(`<h2>Boss defeated!</h2><p>Choose a relic. You also heal 3.</p><div class="cards" id="m-cards"></div>`);
   g.relicOpts.forEach((id, i) => {
     const R0 = RELICS[id];
     const c = el('div', 'card');
@@ -575,7 +580,7 @@ function helpModal() {
     <li><b>Move</b> one square with <kbd>Arrows</kbd>/<kbd>WASD</kbd>, swipe, or tap a neighbouring square. <kbd>Space</kbd> waits.</li>
     <li><b>The whole floor is your deck.</b> Every tile holds one of your spells (coloured frame = which deck slot). <b>Each step casts the tile you step onto, in the direction you stepped.</b></li>
     <li>A used tile <b>recharges in place</b> (faded icon + countdown). Spent tiles are safe, silent steps.</li>
-    <li>There is <b>no melee</b> — you cannot walk into enemies. Every kill is a spell, so plan your path and your approach angle.</li>
+    <li>There is <b>no melee</b>. Walking into an enemy <b>shoves</b> it 1 square (no damage, no cast) — its telegraphed swing moves with it. Every kill is a spell, so plan your path and your approach angle.</li>
     <li><b>Waiting</b> re-casts the tile you stand on (once it has recharged), in the direction you last moved.</li>
     <li>Enemies <b>emerge</b> from rumbling orange rings; the <b>Dark</b> sends shades if you dawdle past par. Shades fade once the real enemies are gone.</li>
     <li><b>Enemies telegraph.</b> Each enemy marks the square(s) it will strike (red crosshair + damage) and attacks on its next turn — hitting <b>whoever</b> stands there, even other enemies. Dodge, kill it, push it so the attack lands elsewhere, or <b>stun it to cancel</b>. Hover an enemy to see its reach (yellow).</li>
