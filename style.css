@@ -161,3 +161,6 @@ kbd { font-family: var(--body); background: #0008; border: 1px solid var(--line)
   .hearts img { width: 16px; height: 14px; }
   .hud-mid { font-size: 8px; }
 }
+
+.toast { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); max-width: min(92%, 520px); background: #1d1526ee; border: 2px solid var(--accent); border-radius: 6px; padding: 8px 12px; font-size: 19px; line-height: 1.1; color: var(--ink); box-shadow: 0 6px 20px #000a; cursor: pointer; z-index: 3; }
+.toast b { color: var(--accent); }

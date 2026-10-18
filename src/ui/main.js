@@ -4,7 +4,7 @@ import { SPELLS, spellsOf, spellCd } from '../core/spells.js';
 import { newRun, act, chooseDraft, rerollDraft, chooseRelic, choosePath, healBetween } from '../core/game.js';
 import { newMeta, applyRun, buy, grimoireFor, nextGoals, GRIMOIRE_COSTS, RELIC_COST } from '../core/meta.js';
 import { key, tile, spikesUp } from '../core/engine.js';
-import { threatOf } from '../core/ai.js';
+import { threatOf, dangerMap } from '../core/ai.js';
 import { Renderer } from './render.js';
 import { preloadAll, sprite, spellIcon, iconCanvas, genImage } from './sprites.js';
 import { sfx, isMuted, setMuted } from './audio.js';
@@ -234,6 +234,37 @@ function afterTurn() {
   else if (g.phase === 'dead' || g.phase === 'won') endModal();
   describe(R.hover);
   R.preview = previewMove(R.hover);
+  checkHints();
+}
+
+// ---- contextual first-run hints ----
+const seenHints = store.get('mc_hints') || {};
+function hint(id, html) {
+  if (seenHints[id]) return false;
+  seenHints[id] = 1;
+  store.set('mc_hints', seenHints);
+  const t = $('#toast');
+  t.innerHTML = html + ' <span class="k">(tap to dismiss)</span>';
+  t.classList.remove('hidden');
+  t.onclick = () => t.classList.add('hidden');
+  clearTimeout(hint.t);
+  hint.t = setTimeout(() => t.classList.add('hidden'), 9000);
+  return true;
+}
+function checkHints() {
+  if (!g || g.phase !== 'play') return;
+  const h = g.hero;
+  const adj = (x, y) => Math.abs(x - h.x) + Math.abs(y - h.y) === 1;
+  if (g.stats.spellsCast === 0 && g.board.some((b) => adj(b.x, b.y)))
+    return hint('spell_adj', 'A spell is next to you! The <b>arrow</b> shows which way it will fire if you step onto it <b>from here</b>.');
+  if (g.stats.spellsCast >= 1 && hint('recharge', 'Cast spells <b>recharge</b>. The faded ghost shows where each one will reappear, and in how many turns.')) return;
+  const dm = dangerMap(g);
+  if (Object.keys(dm).some((k) => { const [x, y] = k.split(',').map(Number); return adj(x, y); }))
+    return hint('danger', '<b>Red squares</b> will be struck on the enemy turn. End your move outside them — or kill the attacker first.');
+  if (g.units.some((u) => u.team === 'enemy' && adj(u.x, u.y))) return hint('bump', 'Walk into an enemy to <b>bump-attack</b> it. Spells are usually safer.');
+  if (g.floorTurns >= g.par - 3 && g.floorTurns < g.par) return hint('par', 'The <b>Dark</b> rises at turn ' + g.par + ': shades will start spawning. Finish the floor fast!');
+  if (g.units.some((u) => u.intent)) return hint('intent', '<b>Orange squares</b>: a telegraphed boss attack. The number is how many turns until it lands.');
+  if (g.floor >= 2) hint('inspect', 'Tip: hover or tap any enemy to see exactly which squares it threatens.');
 }
 
 function banner(html) {
@@ -503,8 +534,9 @@ function endModal() {
     </div>
     ${(g.unlockMsgs || []).map((m) => `<div class="unlock">★ ${m}</div>`).join('')}
     <p class="k">${nextGoals(meta).slice(0, 1).map((gl) => `Next unlock — ${CLASSES[gl.cls].name}: ${gl.text}`).join('')}</p>
-    <div class="row-btns"><button class="btn primary" id="m-again">Descend again</button><button class="btn" id="m-sanc">Sanctum (${meta.embers} ✦)</button><button class="btn ghost" id="m-title">Title</button></div>`);
-  $('#m-again').onclick = () => { closeModal(); show('class'); };
+    <div class="row-btns"><button class="btn primary" id="m-again">Descend again ▶</button><button class="btn" id="m-hero">Change hero</button><button class="btn" id="m-sanc">Sanctum (${meta.embers} ✦)</button><button class="btn ghost" id="m-title">Title</button></div>`);
+  $('#m-again').onclick = () => { closeModal(); if (!meta.classes[s.cls]) return show('class'); startGame(newRun({ cls: s.cls, seed: (Math.random() * 2 ** 32) >>> 0, depth: Math.min(s.depth, meta.depthUnlocked[s.cls] || 0), meta: metaForRun() })); };
+  $('#m-hero').onclick = () => { closeModal(); show('class'); };
   $('#m-sanc').onclick = () => { closeModal(); show('sanctum'); };
   $('#m-title').onclick = () => { closeModal(); show('title'); };
 }

@@ -1,0 +1,167 @@
+[
+ {
+  "key": "spells_knight",
+  "grid": [
+   4,
+   3
+  ],
+  "ids": [
+   "spell_cleave",
+   "spell_charge",
+   "spell_shield_bash",
+   "spell_bulwark",
+   "spell_whirlwind",
+   "spell_lance",
+   "spell_rally",
+   "spell_taunt",
+   "spell_riposte",
+   "spell_earthshaker",
+   "spell_execute",
+   "spell_valor"
+  ],
+  "prompt": "Create ONE landscape image (1536x1024): a sprite sheet of 12 spell icons arranged in an exact 4 columns x 3 rows grid, for the Knight class (theme colour #c9d4e8). In reading order (left to right, top to bottom): 1. Cleave — Hit the 3 squares in front of you for 2. 2. Charge — Dash forward up to 4 squares. If you slam into an enemy: 2 damage and stun it. 3. Shield Bash — Enemy in front takes 1, is knocked back 2 and stunned. 4. Bulwark — Gain 2 Block (absorbs damage this floor). 5. Whirlwind — Deal 2 to all 8 surrounding squares. 6. Lance — Pierce: every enemy in a line (range 3) takes 2. 7. Rally — Heal 2. 8. Taunt — Enemies within 3 are dragged 1 toward you. Gain 1 Block per enemy dragged (max 3). 9. Riposte — The next enemy attack against you is parried and the attacker takes 3. 10. Earthshaker — All enemies within 2 squares take 1 and are stunned. 11. Execute — Enemy in front: slain outright if it has 4 HP or less (bosses take 4). 12. Valor — For 4 turns your bump attacks deal +2. Style: crisp 32x32-pixel-art game icons upscaled with hard pixel edges (no anti-aliasing, no blur), limited 16-colour palette, dark fantasy dungeon roguelite, bold readable silhouettes, strong rim light, each icon centered inside a rounded dark-violet (#241b30) square tile with a 1-pixel lighter border. Pure black (#000000) background and wide pure-black gutters between tiles. NO text, NO letters, NO numbers, NO watermark."
+ },
+ {
+  "key": "spells_pyro",
+  "grid": [
+   4,
+   3
+  ],
+  "ids": [
+   "spell_firebolt",
+   "spell_flame_wave",
+   "spell_fire_ring",
+   "spell_heat_shield",
+   "spell_meteor",
+   "spell_inferno_line",
+   "spell_blink_flare",
+   "spell_combustion",
+   "spell_cinder_storm",
+   "spell_magma_wall",
+   "spell_phoenix_feather",
+   "spell_pyroclasm"
+  ],
+  "prompt": "Create ONE landscape image (1536x1024): a sprite sheet of 12 spell icons arranged in an exact 4 columns x 3 rows grid, for the Pyromancer class (theme colour #ff8a3d). In reading order (left to right, top to bottom): 1. Firebolt — The first enemy in a line takes 2. 2. Flame Wave — A 3-wide, 2-deep wave ahead: 1 damage and sets the ground ablaze. 3. Fire Ring — All 8 surrounding squares: 1 damage and set ablaze. 4. Heat Shield — Gain 1 Block. Adjacent enemies catch fire (their squares burn). 5. Meteor — The toughest enemy takes 3; its neighbours take 1. 6. Inferno Line — Every enemy in the whole line takes 1. The line burns. 7. Blink Flare — Teleport up to 3 squares ahead. Your old square explodes: 2 to its neighbours. 8. Combustion — Every enemy standing on burning ground takes 3. 9. Cinder Storm — Every enemy on the floor takes 1. 10. Magma Wall — A 5-wide line of fire 2 squares ahead burns for 5 turns; enemies on it take 1. 11. Phoenix Feather — Heal 2 and set all 8 surrounding squares ablaze. 12. Pyroclasm — Every enemy within 2 squares (incl. diagonals) takes 3. You take 1. Style: crisp 32x32-pixel-art game icons upscaled with hard pixel edges (no anti-aliasing, no blur), limited 16-colour palette, dark fantasy dungeon roguelite, bold readable silhouettes, strong rim light, each icon centered inside a rounded dark-violet (#241b30) square tile with a 1-pixel lighter border. Pure black (#000000) background and wide pure-black gutters between tiles. NO text, NO letters, NO numbers, NO watermark."
+ },
+ {
+  "key": "spells_ranger",
+  "grid": [
+   4,
+   3
+  ],
+  "ids": [
+   "spell_arrow",
+   "spell_vault",
+   "spell_bear_trap",
+   "spell_piercing_shot",
+   "spell_volley",
+   "spell_hawk",
+   "spell_snare_net",
+   "spell_windstep",
+   "spell_ricochet",
+   "spell_rain_of_arrows",
+   "spell_smoke_bomb",
+   "spell_mark_prey"
+  ],
+  "prompt": "Create ONE landscape image (1536x1024): a sprite sheet of 12 spell icons arranged in an exact 4 columns x 3 rows grid, for the Ranger class (theme colour #8fd16a). In reading order (left to right, top to bottom): 1. Arrow — The first enemy in a line takes 2. 2. Vault — Leap 2 squares backward, then loose an arrow forward for 1. 3. Bear Trap — Set a trap on the square ahead (or under the enemy there): 2 damage and rooted 2 turns. 4. Piercing Shot — Every enemy in a line takes 1; the first takes 1 more. 5. Volley — Three parallel arrows (ahead and to each side): first enemy in each takes 2. 6. Hawk — Your hawk strikes the nearest enemy for 2 and stuns it. 7. Snare Net — Every enemy in a line is stunned 1 turn and rooted 3. 8. Windstep — Dash up to 3 more squares forward. Your next spell deals +1. 9. Ricochet — Hit the nearest enemy for 2, bouncing to 2 more nearby enemies for 1. 10. Rain of Arrows — Every enemy within 3 squares takes 2. 11. Smoke Bomb — Adjacent enemies (incl. diagonal) are stunned 2 turns. You vanish for 1 turn. 12. Mark Prey — First enemy in a line takes 1 and is Marked: +1 damage from everything, forever. Style: crisp 32x32-pixel-art game icons upscaled with hard pixel edges (no anti-aliasing, no blur), limited 16-colour palette, dark fantasy dungeon roguelite, bold readable silhouettes, strong rim light, each icon centered inside a rounded dark-violet (#241b30) square tile with a 1-pixel lighter border. Pure black (#000000) background and wide pure-black gutters between tiles. NO text, NO letters, NO numbers, NO watermark."
+ },
+ {
+  "key": "spells_geo",
+  "grid": [
+   4,
+   3
+  ],
+  "ids": [
+   "spell_boulder",
+   "spell_stone_fist",
+   "spell_raise_wall",
+   "spell_stone_skin",
+   "spell_quake",
+   "spell_tremor",
+   "spell_earth_spike",
+   "spell_sinkhole",
+   "spell_landslide",
+   "spell_geode",
+   "spell_fissure",
+   "spell_tectonic_shift"
+  ],
+  "prompt": "Create ONE landscape image (1536x1024): a sprite sheet of 12 spell icons arranged in an exact 4 columns x 3 rows grid, for the Geomancer class (theme colour #c8a26b). In reading order (left to right, top to bottom): 1. Boulder — Roll a boulder: the first enemy hit takes 1 and is shoved until it hits something. 2. Stone Fist — Enemy in front takes 1 and is knocked back 2. 3. Raise Wall — Raise a 3-wide stone wall 1 square ahead for 6 turns. Enemies there are pushed away and take 1. 4. Stone Skin — Gain 2 Block. 5. Quake — All enemies within 2 squares take 1 and are stunned. 6. Tremor — Push every adjacent enemy (incl. diagonal) 2 squares away. 7. Earth Spike — The nearest enemy within 4 takes 2. 8. Sinkhole — The square 2 ahead collapses into a pit. An enemy there falls (bosses take 3). 9. Landslide — Every enemy in your row and column is shoved 3 squares away from you. 10. Geode — Grow a crystal turret ahead (3 HP, 6 turns). Each turn it shoots the first enemy in each direction for 1. 11. Fissure — Every enemy in a line (range 5) takes 2 and is stunned. 12. Tectonic Shift — Every enemy on the floor slides 2 squares in the direction you moved. Style: crisp 32x32-pixel-art game icons upscaled with hard pixel edges (no anti-aliasing, no blur), limited 16-colour palette, dark fantasy dungeon roguelite, bold readable silhouettes, strong rim light, each icon centered inside a rounded dark-violet (#241b30) square tile with a 1-pixel lighter border. Pure black (#000000) background and wide pure-black gutters between tiles. NO text, NO letters, NO numbers, NO watermark."
+ },
+ {
+  "key": "spells_shadow",
+  "grid": [
+   4,
+   3
+  ],
+  "ids": [
+   "spell_shuriken",
+   "spell_shadowstep",
+   "spell_swap",
+   "spell_smoke",
+   "spell_fan_of_knives",
+   "spell_poison_edge",
+   "spell_caltrops",
+   "spell_decoy",
+   "spell_assassinate",
+   "spell_garrote",
+   "spell_mirror_step",
+   "spell_death_mark"
+  ],
+  "prompt": "Create ONE landscape image (1536x1024): a sprite sheet of 12 spell icons arranged in an exact 4 columns x 3 rows grid, for the Shadowblade class (theme colour #b18cff). In reading order (left to right, top to bottom): 1. Shuriken — First enemy in a line takes 1, then it bounces to the nearest other enemy for 1. 2. Shadowstep — Teleport behind the first enemy in a line (range 5) and stun it. 3. Swap — Swap places with the first enemy in a line. It is stunned. 4. Smoke — Vanish for 2 turns: enemies cannot attack or track you. 5. Fan of Knives — The first enemy in each of the 4 directions takes 1. 6. Poison Edge — All 8 surrounding enemies are poisoned for 3 (1 damage per turn). 7. Caltrops — Scatter caltrops on 3 squares ahead in a line: 1 damage and root when stepped on. 8. Decoy — Leave a decoy (3 HP, 5 turns) on the square ahead. Enemies prefer to chase and hit it. 9. Assassinate — First enemy in a line within 2: 5 damage if it is stunned or rooted, otherwise 2. 10. Garrote — Enemy in front takes 1 and is stunned 2 turns. 11. Mirror Step — Teleport onto the farthest spell on the board and cast it (same direction). 12. Death Mark — Every enemy in a line is Marked (+1 damage taken) and poisoned 2. Style: crisp 32x32-pixel-art game icons upscaled with hard pixel edges (no anti-aliasing, no blur), limited 16-colour palette, dark fantasy dungeon roguelite, bold readable silhouettes, strong rim light, each icon centered inside a rounded dark-violet (#241b30) square tile with a 1-pixel lighter border. Pure black (#000000) background and wide pure-black gutters between tiles. NO text, NO letters, NO numbers, NO watermark."
+ },
+ {
+  "key": "spells_hexer",
+  "grid": [
+   4,
+   3
+  ],
+  "ids": [
+   "spell_bone_spear",
+   "spell_life_drain",
+   "spell_raise_dead",
+   "spell_curse",
+   "spell_corpse_explosion",
+   "spell_bone_wall",
+   "spell_soul_swap",
+   "spell_wither",
+   "spell_grave_grasp",
+   "spell_dark_pact",
+   "spell_plague",
+   "spell_lich_form"
+  ],
+  "prompt": "Create ONE landscape image (1536x1024): a sprite sheet of 12 spell icons arranged in an exact 4 columns x 3 rows grid, for the Hexer class (theme colour #7de0c8). In reading order (left to right, top to bottom): 1. Bone Spear — Every enemy in a line (range 4) takes 1; the first takes 1 more. 2. Life Drain — The nearest enemy within 3 takes 1. You heal 1. 3. Raise Dead — Up to 2 corpses within 4 rise as skeleton allies (2 HP). They fight for you. 4. Curse — First enemy in a line takes 1 and is Cursed 3 turns (takes double damage). 5. Corpse Explosion — Every corpse on the floor explodes: 2 damage to its 8 neighbours. 6. Bone Wall — A 3-wide wall of bone 1 square ahead for 4 turns. 7. Soul Swap — Swap places with the farthest enemy; it takes 2. 8. Wither — Every enemy takes 1 (cursed enemies take double, as usual). 9. Grave Grasp — Enemies within 2 of a corpse (or of you) are rooted 3 and stunned 1. 10. Dark Pact — Lose 1 HP. All your other spells finish recharging instantly. 11. Plague — Every enemy is poisoned 2. 12. Lich Form — For 4 turns your bump attacks deal 3 and heal you 1. Style: crisp 32x32-pixel-art game icons upscaled with hard pixel edges (no anti-aliasing, no blur), limited 16-colour palette, dark fantasy dungeon roguelite, bold readable silhouettes, strong rim light, each icon centered inside a rounded dark-violet (#241b30) square tile with a 1-pixel lighter border. Pure black (#000000) background and wide pure-black gutters between tiles. NO text, NO letters, NO numbers, NO watermark."
+ },
+ {
+  "key": "relics",
+  "grid": [
+   4,
+   3
+  ],
+  "ids": [
+   "relic_iron_heart",
+   "relic_echo_stone",
+   "relic_hourglass",
+   "relic_vampire_fang",
+   "relic_thorn_mail",
+   "relic_extra_pocket",
+   "relic_glass_lens",
+   "relic_swift_boots",
+   "relic_lucky_coin",
+   "relic_ember_heart",
+   "relic_spiked_boots",
+   "relic_phylactery"
+  ],
+  "prompt": "Create ONE landscape image (1536x1024): a sprite sheet of 12 magical relic item icons in an exact 4 columns x 3 rows grid. In reading order: 1. Iron Heart — +2 max HP (and heal 2). 2. Echo Stone — The first spell you cast each floor casts twice. 3. Hourglass — All spell cooldowns -1 (min 1). 4. Vampire Fang — Every 4th kill heals 1. 5. Thorn Mail — Enemies that hit you in melee take 1. 6. Extra Pocket — +1 deck slot. 7. Glass Lens — Spells deal +1 damage. Max HP -2. 8. Swift Boots — Swift bonus threshold +6 turns; the Dark arrives later. 9. Lucky Coin — +1 option in every spell draft. 10. Ember Heart — +1 Ember per floor cleared. 11. Spiked Boots — Spikes and burning ground no longer hurt you. 12. Phylactery — Once per run, survive a lethal blow at 1 HP. Style: crisp 32x32-pixel-art game icons upscaled with hard pixel edges (no anti-aliasing, no blur), limited 16-colour palette, dark fantasy dungeon roguelite, bold readable silhouettes, strong rim light, each icon centered inside a rounded dark-violet (#241b30) square tile with a 1-pixel lighter border. Pure black (#000000) background and wide pure-black gutters between tiles. NO text, NO letters, NO numbers, NO watermark."
+ },
+ {
+  "key": "title",
+  "grid": [
+   1,
+   1
+  ],
+  "ids": [
+   "title"
+  ],
+  "prompt": "Create ONE wide image (1536x672 or the closest supported wide aspect): key art for a pixel-art tactical roguelite called MoveCasters. A torch-lit dungeon floor seen from a slightly top-down angle, made of square stone tiles like a chessboard; glowing magical rune circles (spells) lie on several tiles; a small armoured knight hero steps onto one rune and a burst of light erupts in the direction of the step; skeletons, an imp, an orc and a huge horned demon lurk in the shadows. Moody purple and ember-orange palette, crisp 16-bit pixel art with hard pixel edges. NO text, NO letters, NO logo."
+ }
+]
