@@ -112,7 +112,7 @@ export class Renderer {
       case 'move': { const u = U(e.id); if (u) { u.x = e.to[0]; u.y = e.to[1]; } return e.push ? 70 : 75; }
       case 'lunge': { const u = U(e.id); if (u) u.lunge = { to: e.to, t0: now }; sfx('swing'); return 110; }
       case 'hit': { const u = U(e.id); if (u) { u.hp -= e.n; u.flash = 1; } this.float(e.x, e.y, '-' + e.n, '#fff'); sfx('hit'); return 70; }
-      case 'hurt': V.hero.flash = 1; this.shake = 7; this.float(e.x, e.y, '-' + e.n, '#ff4d4d', true); sfx('hurt'); return 160;
+      case 'hurt': V.hero.flash = 1; this.shake = 7; this.float(e.x, e.y, '-' + e.n, '#ff4d4d', true); if (e.src) this.float(e.x, e.y + 0.45, e.src.toUpperCase(), '#ffb0b0'); sfx('hurt'); return 160;
       case 'heal': this.float(e.x, e.y, '+' + e.n, '#7dff6b'); sfx('heal'); return 60;
       case 'death': { const u = U(e.id); if (u) u.dying = now; sfx('death'); return 80; }
       case 'bolt': { const d = Math.hypot(e.to[0] - e.from[0], e.to[1] - e.from[1]); const dur = 70 + d * 14; this.fx.push({ k: 'bolt', ...e, t0: now, dur }); sfx('bolt'); return dur; }

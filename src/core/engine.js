@@ -192,7 +192,7 @@ export function hurtHero(g, n, attacker, kind = 'enemy') {
   h.hp -= n;
   g.stats.dmgTaken += n;
   g.floorDmg += n;
-  emit(g, { t: 'hurt', x: h.x, y: h.y, n });
+  emit(g, { t: 'hurt', x: h.x, y: h.y, n, src: attacker ? (ENEMIES[attacker.type]?.name || '') : ({ spikes: 'spikes', burn: 'fire', lava: 'lava', area: 'blast', self: 'self' }[kind] || '') });
   if (attacker && h.relics.includes('thorn_mail') && cheb(attacker.x, attacker.y, h.x, h.y) <= 1) {
     damageUnit(g, attacker, 1, h, 'spell');
   }
