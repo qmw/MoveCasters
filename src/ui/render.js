@@ -232,9 +232,10 @@ export class Renderer {
         ctx.strokeStyle = col; ctx.globalAlpha = 0.55 + 0.2 * pulse; ctx.lineWidth = Math.max(1.5, ts / 22);
         const m = ts * 0.08;
         ctx.strokeRect(X(x) + m, Y(y) + m, ts - 2 * m, ts - 2 * m);
-        ctx.fillStyle = col; ctx.globalAlpha = 0.1; ctx.fillRect(X(x) + m, Y(y) + m, ts - 2 * m, ts - 2 * m);
+        ctx.fillStyle = col; ctx.globalAlpha = 0.24; ctx.fillRect(X(x) + m, Y(y) + m, ts - 2 * m, ts - 2 * m);
+        ctx.globalAlpha = 0.9;
+        drawFit(ctx, icon, X(x) + ts * 0.21, Y(y) + ts * 0.21, ts * 0.58, ts * 0.58);
         ctx.globalAlpha = 1;
-        drawFit(ctx, icon, X(x) + ts * 0.17, Y(y) + ts * 0.15, ts * 0.66, ts * 0.66);
         if (d.lv) this.label(ctx, X(x) + ts - 5, Y(y) + 12, '+', '#ffcf5a', 'right', 12);
         if (!this.busy && g.phase === 'play' && Math.abs(x - hx0) + Math.abs(y - hy0) === 1) this.arrow(ctx, X(x) + ts / 2, Y(y) + ts / 2, x - hx0, y - hy0, col);
       }

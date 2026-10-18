@@ -15,7 +15,10 @@ for k in "${keys[@]}"; do
     "Use your image generation tool exactly once. $prompt After generating, save/copy the PNG to ./$k.png in the current directory and reply DONE." \
     </dev/null > "assets/gen/raw/$k.log" 2>&1
   if [ ! -s "assets/gen/raw/$k.png" ]; then
-    f=$(find ~/.codex/generated_images -type f -name '*.png' -newer "$marker" -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2-)
+    # only look in this run's own session folder: other Codex sessions may be generating images too
+    sid=$(sed -n 's/^session id: //p' "assets/gen/raw/$k.log" | head -1)
+    f=""
+    [ -n "$sid" ] && [ -d ~/.codex/generated_images/"$sid" ] && f=$(find ~/.codex/generated_images/"$sid" -type f -name '*.png' -newer "$marker" -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2-)
     [ -n "$f" ] && cp "$f" "assets/gen/raw/$k.png"
   fi
   rm -f "$marker"
