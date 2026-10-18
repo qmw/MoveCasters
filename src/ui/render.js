@@ -1,7 +1,7 @@
 // Canvas board renderer with an event timeline for animations.
 import { T, ENEMIES, ALLIES, CLASSES } from '../core/data.js';
 import { SPELLS } from '../core/spells.js';
-import { dangerMap, intentMap, patternTiles, effectivePattern, willAct } from '../core/ai.js';
+import { intentMap, intentTiles, reachOf } from '../core/ai.js';
 import { key, spikesUp, tile } from '../core/engine.js';
 import { sprite, spellIcon, drawFit } from './sprites.js';
 import { sfx } from './audio.js';
@@ -242,24 +242,31 @@ export class Renderer {
     // threats & intents
     const showThreat = this.showDanger && !this.busy && g.phase === 'play';
     if (showThreat) {
-      const dm = dangerMap(g);
-      for (const [k, n] of Object.entries(dm)) {
-        const [x, y] = k.split(',').map(Number);
-        if (tile(g, x, y) === T.WALL) continue;
-        ctx.fillStyle = `rgba(255,30,30,${0.22 + 0.1 * Math.min(n, 3)})`;
-        ctx.fillRect(X(x) + 1, Y(y) + 1, ts - 2, ts - 2);
-        ctx.strokeStyle = 'rgba(255,80,80,0.55)'; ctx.lineWidth = 1;
-        ctx.strokeRect(X(x) + 2.5, Y(y) + 2.5, ts - 5, ts - 5);
-        if (n > 1) this.label(ctx, X(x) + 4, Y(y) + 11, n + '', '#ffb0b0', 'left');
-      }
       const im = intentMap(g);
+      const p = 0.5 + 0.5 * Math.sin(now / 160);
       for (const [k, it] of Object.entries(im)) {
         const [x, y] = k.split(',').map(Number);
-        const p = 0.5 + 0.5 * Math.sin(now / 150);
-        ctx.fillStyle = `rgba(255,150,30,${0.25 + 0.2 * p})`;
+        if (it.path) { ctx.fillStyle = 'rgba(255,60,60,0.13)'; ctx.fillRect(X(x) + 1, Y(y) + 1, ts - 2, ts - 2); continue; }
+        const soon = it.delay <= 1;
+        ctx.fillStyle = soon ? `rgba(255,30,30,${0.3 + 0.15 * p})` : 'rgba(255,150,30,0.3)';
         ctx.fillRect(X(x) + 1, Y(y) + 1, ts - 2, ts - 2);
-        ctx.strokeStyle = '#ffae3d'; ctx.setLineDash([4, 3]); ctx.strokeRect(X(x) + 2.5, Y(y) + 2.5, ts - 5, ts - 5); ctx.setLineDash([]);
-        this.label(ctx, X(x) + ts / 2, Y(y) + ts / 2 + 5, it.delay > 1 ? it.delay + '' : '!', '#ffe0a0', 'center', 14);
+        ctx.strokeStyle = soon ? '#ff5050' : '#ffae3d'; ctx.lineWidth = 2;
+        ctx.setLineDash(soon ? [] : [4, 3]); ctx.strokeRect(X(x) + 2, Y(y) + 2, ts - 4, ts - 4); ctx.setLineDash([]);
+        // crosshair
+        ctx.strokeStyle = soon ? 'rgba(255,220,220,0.8)' : 'rgba(255,220,150,0.8)'; ctx.lineWidth = 1.5;
+        const cx = X(x) + ts / 2, cy = Y(y) + ts / 2, r = ts * 0.2;
+        ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r); ctx.stroke();
+        this.label(ctx, X(x) + ts - 4, Y(y) + 12, it.dmg + '', '#fff', 'right', 11);
+        if (!soon) this.label(ctx, X(x) + 4, Y(y) + 12, it.delay + 't', '#ffe0a0', 'left', 9);
+      }
+      // attack lines from each attacker to its target
+      for (const u of g.units) {
+        if (u.team !== 'enemy' || !u.intent || u.intent.kind === 'area') continue;
+        const tl = intentTiles(g, u);
+        const end = tl[tl.length - 1];
+        if (!end) continue;
+        ctx.strokeStyle = 'rgba(255,90,90,0.75)'; ctx.lineWidth = Math.max(2, ts / 16); ctx.setLineDash([5, 4]);
+        ctx.beginPath(); ctx.moveTo(X(u.x) + ts / 2, Y(u.y) + ts / 2); ctx.lineTo(X(end[0]) + ts / 2, Y(end[1]) + ts / 2); ctx.stroke(); ctx.setLineDash([]);
       }
       if (g.doomMark) {
         const [x, y] = g.doomMark;
@@ -273,7 +280,7 @@ export class Renderer {
       const [hx, hy] = this.hover;
       const u = g.units.find((v) => v.x === hx && v.y === hy && v.team === 'enemy');
       if (u) {
-        const tiles = patternTiles(g, effectivePattern(u), u.x, u.y, ENEMIES[u.type].range || 4);
+        const tiles = reachOf(g, u);
         ctx.strokeStyle = '#ffcf5a'; ctx.lineWidth = 2;
         for (const [x, y] of tiles) ctx.strokeRect(X(x) + 4, Y(y) + 4, ts - 8, ts - 8);
       }
@@ -416,14 +423,12 @@ export class Renderer {
     if (u.poison > 0) tag('P', '#7dff6b');
     if (u.curse > 0) tag('C', '#c58cff');
     if (u.mark > 0) tag('M', '#ff6b6b');
-    if (ENEMIES[u.type]?.slow && !u.slowReady && u.stun <= 0) tag('z', '#9a9ab8');
     if (ENEMIES[u.type]?.shield) {
       ctx.fillStyle = '#8ecbff';
       const [fx, fy] = u.facing;
       const cx = sx + ts / 2 + fx * ts * 0.42, cy = sy + ts / 2 + fy * ts * 0.42;
       ctx.fillRect(cx - (fy ? ts * 0.3 : ts * 0.05), cy - (fx ? ts * 0.3 : ts * 0.05), fy ? ts * 0.6 : ts * 0.1, fx ? ts * 0.6 : ts * 0.1);
     }
-    if (u.team === 'enemy' && !willAct(u) && u.stun > 0) { /* stunned: no threat */ }
   }
 
   drawHero(ctx, now) {

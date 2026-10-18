@@ -85,6 +85,7 @@ export function act(g, action, opts = {}) {
     const [dx, dy] = DIRS[action];
     const tx = h.x + dx, ty = h.y + dy;
     const u = unitAt(g, tx, ty);
+    if (u && u.team === 'enemy') return false; // no melee: all damage comes from spells
     if (h.root > 0) {
       h.root--;
       emit(g, { t: 'text', x: h.x, y: h.y, s: 'STUCK', c: '#7dff6b' });

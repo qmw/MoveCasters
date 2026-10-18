@@ -178,12 +178,12 @@ export function hurtHero(g, n, attacker, kind = 'enemy') {
     damageUnit(g, attacker, 3, h, 'spell');
     return 0;
   }
-  if (g.cls === 'knight' && !h.steelUsed) {
+  if (g.cls === 'knight' && !h.steelUsed && kind !== 'self') {
     h.steelUsed = true;
     emit(g, { t: 'text', x: h.x, y: h.y, s: 'STEEL', c: '#c9d4e8' });
     return 0;
   }
-  if (h.block > 0) {
+  if (h.block > 0 && kind !== 'self') {
     const b = Math.min(h.block, n);
     h.block -= b; n -= b;
     emit(g, { t: 'text', x: h.x, y: h.y, s: 'BLOCK ' + b, c: '#8ecbff' });

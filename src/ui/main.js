@@ -4,7 +4,7 @@ import { SPELLS, spellsOf, spellCd, spellFreq } from '../core/spells.js';
 import { newRun, act, chooseDraft, rerollDraft, chooseRelic, choosePath, healBetween } from '../core/game.js';
 import { newMeta, applyRun, buy, grimoireFor, nextGoals, GRIMOIRE_COSTS, RELIC_COST } from '../core/meta.js';
 import { key, tile, spikesUp } from '../core/engine.js';
-import { threatOf, dangerMap } from '../core/ai.js';
+import { intentTiles, dangerMap } from '../core/ai.js';
 import { Renderer, SLOT_COLORS } from './render.js';
 import { preloadAll, sprite, spellIcon, iconCanvas, genImage } from './sprites.js';
 import { sfx, isMuted, setMuted } from './audio.js';
@@ -260,9 +260,9 @@ function checkHints() {
   if (g.stats.spellsCast >= 1 && hint('recharge', 'A used tile <b>recharges in place</b> (faded, with a countdown). Walking over spent tiles casts nothing — use them to reposition.')) return;
   const dm = dangerMap(g);
   if (Object.keys(dm).some((k) => { const [x, y] = k.split(',').map(Number); return adj(x, y); }))
-    return hint('danger', '<b>Red squares</b> will be struck on the enemy turn. End your move outside them — or kill the attacker first.');
+    return hint('danger', '<b>Red crosshairs</b> are telegraphed attacks: they land on the enemy turn, hitting whoever stands there — even other enemies. Dodge, kill, push or stun the attacker.');
   if (g.floorTurns >= g.par - 3 && g.floorTurns < g.par) return hint('par', 'The <b>Dark</b> rises at turn ' + g.par + ': shades will start spawning. Finish the floor fast!');
-  if (g.units.some((u) => u.intent)) return hint('intent', '<b>Orange squares</b>: a telegraphed boss attack. The number is how many turns until it lands.');
+  if (g.units.some((u) => u.intent && u.intent.delay > 1)) return hint('intent', '<b>Orange squares</b> land in more than one turn (see the countdown).');
   if (g.floor >= 2) hint('inspect', 'Tip: hover or tap any enemy to see exactly which squares it threatens.');
 }
 
@@ -330,7 +330,7 @@ function describe(t) {
   if (!t) {
     const hints = [
       'Every step casts the tile you step onto, <em>in the direction you moved</em>. Spent tiles are silent steps.',
-      'Red squares will be attacked on the enemy turn. Numbers = several attackers.',
+      'Red crosshairs = telegraphed attacks landing next enemy turn (number = damage). Stun cancels them.',
       'Hover/tap an enemy to see its reach. Orange tiles = telegraphed boss attacks.',
       `Clear the floor within ${g.par} turns for a Swift bonus (+1 Ember, +1 draft choice). After that, the Dark spawns shades.`,
     ];
@@ -347,7 +347,7 @@ function describe(t) {
   if (u) {
     const D = ENEMIES[u.type] || ALLIES[u.type];
     const st = [u.stun > 0 && `stunned ${u.stun}`, u.root > 0 && `rooted ${u.root}`, u.poison > 0 && `poison ${u.poison}`, u.curse > 0 && `cursed ${u.curse}`, u.mark && 'marked', u.elite && 'elite'].filter(Boolean);
-    if (u.team === 'enemy') parts.push(`<b>${D.name} ${u.hp}/${u.maxHp}</b>${D.desc}<br><span class="k">Attacks ${PATTERN_TEXT[D.pattern] || 'special'} for ${D.dmg}.${st.length ? ' Status: ' + st.join(', ') + '.' : ''}</span>${u.intent ? '<br><span class="warn">Preparing a big attack on the orange squares!</span>' : ''}`);
+    if (u.team === 'enemy') parts.push(`<b>${D.name} ${u.hp}/${u.maxHp}</b>${D.desc}<br><span class="k">Reach: ${PATTERN_TEXT[D.pattern] || 'special'} (yellow outline), ${D.dmg} dmg.${st.length ? ' Status: ' + st.join(', ') + '.' : ''}</span>${u.intent ? `<br><span class="warn">Telegraphing an attack (${u.intent.dmg} dmg) — it lands on its next turn. Move away, kill it, push it, or stun it to cancel.</span>` : ''}`);
     else parts.push(`<b>${D.name} (ally)</b>${D.desc}<br><span class="k">HP ${u.hp}${u.life ? `, ${u.life} turns left` : ''}</span>`);
   }
   const cl = g.cells[y * g.map.w + x];
@@ -367,8 +367,8 @@ function describe(t) {
   if (g.fx.corpse[k]) parts.push('<b>Remains</b>Fuel for the Hexer.');
   if (g.fx.trap[k]) parts.push('<b>Your trap</b>Enemies stepping here are hurt and rooted.');
   if (g.doomMark && g.doomMark[0] === x && g.doomMark[1] === y) parts.push('<b>The Dark</b><span class="warn">A shade will emerge here.</span>');
-  const threats = g.units.filter((v) => v.team === 'enemy' && threatOf(g, v).some(([a, c]) => a === x && c === y));
-  if (threats.length) parts.push(`<span class="warn">Threatened by: ${threats.map((v) => ENEMIES[v.type].name).join(', ')}</span>`);
+  const threats = g.units.filter((v) => v.team === 'enemy' && v.intent && intentTiles(g, v).slice(v.intent.kind === 'line' || v.intent.kind === 'charge' ? -1 : 0).some(([a, c]) => a === x && c === y));
+  if (threats.length) parts.push(`<span class="warn">Targeted by: ${threats.map((v) => `${ENEMIES[v.type].name} (${v.intent.dmg} dmg${v.intent.delay > 1 ? `, in ${v.intent.delay} turns` : ''})`).join(', ')}</span>`);
   showInfo(parts.join('<br>') || '<span class="k">Floor.</span>');
 }
 
@@ -574,7 +574,7 @@ function helpModal() {
     <li><b>The whole floor is your deck.</b> Every tile holds one of your spells (coloured frame = which deck slot). <b>Each step casts the tile you step onto, in the direction you stepped.</b></li>
     <li>A used tile <b>recharges in place</b> (faded icon + countdown). Spent tiles are safe, silent steps.</li>
     <li>There is <b>no melee</b> — you cannot walk into enemies. Every kill is a spell, so plan your path and your approach angle.</li>
-    <li><b>Red squares</b> are threatened: enemies attack if you end your move there, otherwise they move. Like chess pieces, each enemy has its own reach — hover/tap it to see. Orange squares are telegraphed boss attacks.</li>
+    <li><b>Enemies telegraph.</b> Each enemy marks the square(s) it will strike (red crosshair + damage) and attacks on its next turn — hitting <b>whoever</b> stands there, even other enemies. Dodge, kill it, push it so the attack lands elsewhere, or <b>stun it to cancel</b>. Hover an enemy to see its reach (yellow).</li>
     <li>Clear every enemy to finish the floor, then draft new spells. Be quick: after the <b>par</b> turn count, the Dark spawns shades.</li>
     <li>Earn <span class="ember">Embers</span> to unlock spells, relics and blessings in the Sanctum. Achievements unlock new heroes.</li></ul>
     <div class="row-btns"><button class="btn primary" id="m-ok">Got it</button></div>`);

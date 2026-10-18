@@ -31,8 +31,14 @@ Death or victory → Embers awarded → Sanctum (meta-unlocks) → new run
     for the spell's cooldown (a faded icon with a countdown). Spent tiles can be walked over freely — they are your "quiet" moves.
   - You cannot move into enemies (there is no bump attack). All damage comes from spells.
   - If a spell moves you (Charge, Vault, Swap…) and you land on a ready tile, that tile casts too (max chain 3).
-- **Enemy phase** – each enemy: **if the hero is inside its attack pattern → attack, otherwise move.** Threatened
-  squares are shaded red, so danger is 100% readable.
+- **Enemy phase (Into the Breach style)** – each enemy, in order:
+  1. **Resolves** the attack it telegraphed last turn: it strikes the marked squares, hitting *whatever* is there —
+     you, your allies, or **other enemies** (friendly fire). Melee/lob intents are relative to the attacker, so if you push
+     or swap it, the attack lands somewhere else. Line/charge intents fire in the marked direction from wherever it stands.
+  2. **Moves** toward a square from which you are inside its attack pattern.
+  3. **Telegraphs** its next attack on your current square (or line). The marked squares are shown in red with the damage.
+  - **Stunning an enemy cancels its telegraphed attack.** Killing it obviously does too.
+  - Bosses telegraph big area attacks 1–2 turns ahead (orange countdowns).
 - **Upkeep** – tiles recharge, burning/poison tick, spikes toggle, doom clock ticks.
 
 ### Floor overlays (biome flavour, never obstacles)
@@ -50,7 +56,7 @@ Take no damage → **Flawless** (+1 Ember). After par, **the Dark rises**: every
 
 | Class | Sprite | HP | Passive | Unlock |
 |---|---|---|---|---|
-| **Knight** | knight_m | 7 | *Steel*: first hit each floor is blocked | Start |
+| **Knight** (ranged) | knight_m | 7 | *Steel*: first hit each floor is blocked | Start |
 | **Pyromancer** | wizzard_m | 5 | *Kindling*: spell kills set the ground ablaze; immune to fire | Reach floor 4 |
 | **Ranger** | elf_f | 6 | *Steady Aim*: after waiting, your next spell deals +1 | Kill 60 enemies (total) |
 | **Geomancer** | dwarf_m | 6 | *Stoneblood*: knocking an enemy into a wall/enemy deals +1 | Defeat the Crypt boss |
@@ -61,7 +67,7 @@ Each class has 12 spells: 4 starters (including one common *basic* spell), 4 bas
 Every spell has a cooldown and a floor frequency (1 = rare, 3 = common).
 Spell list with exact numbers lives in `src/core/spells.js` (the single source of truth); summary:
 
-- **Knight** – Slash, Cleave, Shield Bash, Bulwark | Charge, Whirlwind, Lance, Rally | Taunt, Riposte, Earthshaker, Execute
+- **Knight** (ranged: thrown shields, lances, holy light) – Shield Throw, Smite, Lance, Bulwark | Charge, Holy Nova, Javelin Volley, Rally | Taunt, Riposte, Judgement, Execute
 - **Pyromancer** – Firebolt, Flame Wave, Fire Ring, Heat Shield | Meteor, Inferno Line, Blink Flare, Combustion | Cinder Storm, Magma Wall, Phoenix Feather, Pyroclasm
 - **Ranger** – Arrow, Vault, Bear Trap, Piercing Shot | Volley, Hawk, Snare Net, Windstep | Ricochet, Rain of Arrows, Smoke Bomb, Mark Prey
 - **Geomancer** – Boulder, Stone Fist, Raise Wall, Stone Skin | Quake, Tremor, Earth Spike, Sinkhole | Landslide, Geode, Fissure, Tectonic Shift
@@ -70,7 +76,8 @@ Spell list with exact numbers lives in `src/core/spells.js` (the single source o
 
 ## 5. Enemies — chess pieces with teeth
 
-Attack patterns are shown as threat squares. Movement uses pathfinding with the listed step style.
+The attack pattern is the enemy's *reach*: from where it can telegraph an attack on you. Hover an enemy to see it.
+Movement uses pathfinding with the listed step style.
 
 | Enemy | Biome | HP | Attack pattern (threat) | Move | Special |
 |---|---|---|---|---|---|
@@ -92,10 +99,10 @@ Attack patterns are shown as threat squares. Movement uses pathfinding with the 
 | Shade | any (doom) | 1 | 8 neighbours | 1 any, phases through walls | spawned by doom clock |
 
 Bosses (32x36 sprites, occupy 1 tile but have patterns):
-- **Bone Tyrant** (big_zombie, Crypt): 10 HP, orth neighbours for 2; every 4th turn raises 2 skeletons.
-- **Mother Slug** (slug scaled, Swamp): 10 HP, spits slime lines; splits into Mudlings at half HP.
-- **Frost Colossus** (ice_zombie scaled, Frozen): 12 HP, slams a 3x3 telegraphed area every 3rd turn, otherwise moves.
-- **Orc Warlord** (ogre, Warrens): 14 HP, Rook charge range 5 for 3 dmg; summons goblins.
+- **Bone Tyrant** (big_zombie, Crypt): 11 HP, orth neighbours for 2; every 4th turn raises 2 skeletons.
+- **Mother Slug** (slug scaled, Swamp): 12 HP, spits slime lines; splits into Mudlings at half HP.
+- **Frost Colossus** (ice_zombie scaled, Frozen): 13 HP, slams a 3x3 telegraphed area every 3rd turn, otherwise moves.
+- **Orc Warlord** (ogre, Warrens): 15 HP, Rook charge range 5 for 3 dmg; summons goblins.
 - **Pit Lord** (big_demon, Inferno): 18 HP, King pattern, alternates fire lines (telegraphed rows/columns) and imp summons.
 
 ## 6. Biomes

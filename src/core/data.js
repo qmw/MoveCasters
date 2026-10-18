@@ -16,10 +16,11 @@ export const KNIGHT = [[1, -2], [2, -1], [2, 1], [1, 2], [-1, 2], [-2, 1], [-2, 
 
 export const CLASSES = {
   knight: {
-    name: 'Knight', sprite: 'knight_m', hp: 7, color: '#c9d4e8',
+    name: 'Knight', sprite: 'knight_m', hp: 7,
+    role: 'Ranged guardian: thrown shields, lances and holy light.', color: '#c9d4e8',
     passive: 'Steel — the first hit you take each floor is blocked.',
     unlock: null,
-    starters: ['slash', 'cleave', 'shield_bash', 'bulwark'],
+    starters: ['shield_throw', 'smite', 'lance', 'bulwark'],
   },
   pyro: {
     name: 'Pyromancer', sprite: 'wizzard_m', hp: 5, color: '#ff8a3d',

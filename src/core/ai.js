@@ -1,4 +1,6 @@
-// Enemy + ally behaviour. Rule: an enemy attacks if the hero is inside its threat pattern, otherwise it moves.
+// Enemy + ally behaviour, Into-the-Breach style:
+// each enemy phase an enemy RESOLVES its telegraphed attack (hitting whatever stands there), then MOVES,
+// then TELEGRAPHS a new attack (u.intent) at the hero. Stun cancels the telegraph.
 import { ENEMIES, ORTH, DIAG, KING, KNIGHT, T } from './data.js';
 import {
   key, inb, tile, setTile, isWall, unitAt, heroAt, occupied, enemies, allies, standable, enemySafe, manhattan,
@@ -41,29 +43,67 @@ export function effectivePattern(u) {
   return def.pattern;
 }
 
-// Is this enemy going to act (attack) next enemy phase?
-export const willAct = (u) => u.stun <= 0 && !(ENEMIES[u.type].slow && !u.slowReady);
+// Where this enemy could telegraph an attack from its current square (its "reach").
+export function reachOf(g, u) {
+  if (u.team !== 'enemy') return [];
+  return patternTiles(g, effectivePattern(u), u.x, u.y, ENEMIES[u.type].range || 4);
+}
+const inReach = (g, u, tx, ty) => reachOf(g, u).some(([x, y]) => x === tx && y === ty);
+// Back-compat alias used by older tools.
+export const threatOf = reachOf;
 
-export function threatOf(g, u) {
-  if (u.team !== 'enemy' || !willAct(u)) return [];
-  const def = ENEMIES[u.type];
-  if (u.intent) return [];
-  return patternTiles(g, effectivePattern(u), u.x, u.y, def.range || 4);
+// Walk a line from (x,y): returns tiles up to and including the first unit or hero.
+function lineTiles(g, x, y, dx, dy, range) {
+  const out = [];
+  for (let i = 1; i <= range; i++) {
+    const nx = x + dx * i, ny = y + dy * i;
+    if (!inb(g, nx, ny) || isWall(g, nx, ny)) break;
+    out.push([nx, ny]);
+    if (unitAt(g, nx, ny) || heroAt(g, nx, ny)) break;
+  }
+  return out;
 }
 
-// key -> count of enemies that will hit that square, plus intents (telegraphed area attacks)
+// Absolute squares the current telegraph will strike (recomputed live: relative intents follow the attacker).
+export function intentTiles(g, u) {
+  const it = u.intent;
+  if (!it) return [];
+  switch (it.kind) {
+    case 'rel': return it.offs.map(([dx, dy]) => [u.x + dx, u.y + dy]).filter(([x, y]) => inb(g, x, y) && !isWall(g, x, y));
+    case 'line': case 'charge': return lineTiles(g, u.x, u.y, it.dir[0], it.dir[1], it.range);
+    case 'area': return it.tiles;
+  }
+  return [];
+}
+
+// key -> total damage landing there on the NEXT enemy phase.
 export function dangerMap(g) {
   const m = {};
-  for (const u of enemies(g)) for (const [x, y] of threatOf(g, u)) m[key(x, y)] = (m[key(x, y)] || 0) + 1;
+  for (const u of enemies(g)) {
+    if (!u.intent || u.intent.delay > 1) continue;
+    const tiles = intentTiles(g, u);
+    const hitTiles = u.intent.kind === 'line' || u.intent.kind === 'charge' ? tiles.slice(-1) : tiles;
+    for (const [x, y] of hitTiles) m[key(x, y)] = (m[key(x, y)] || 0) + u.intent.dmg;
+  }
   return m;
 }
+// key -> {dmg, delay, path} for every telegraph (for rendering; path = squares a projectile/charge travels through).
 export function intentMap(g) {
   const m = {};
-  for (const u of enemies(g)) if (u.intent) for (const [x, y] of u.intent.tiles) m[key(x, y)] = { dmg: u.intent.dmg, delay: u.intent.delay };
+  for (const u of enemies(g)) {
+    if (!u.intent) continue;
+    const tiles = intentTiles(g, u);
+    const isLine = u.intent.kind === 'line' || u.intent.kind === 'charge';
+    tiles.forEach(([x, y], i) => {
+      const k = key(x, y);
+      const path = isLine && i < tiles.length - 1;
+      const prev = m[k];
+      if (!prev || (prev.path && !path)) m[k] = { dmg: (prev && !prev.path ? prev.dmg : 0) + (path ? 0 : u.intent.dmg), delay: u.intent.delay, path, from: u.id };
+      else if (!path) prev.dmg += u.intent.dmg;
+    });
+  }
   return m;
 }
-
-const inPattern = (g, u, tx, ty) => threatOf(g, u).some(([x, y]) => x === tx && y === ty);
 
 // ---- Movement ---------------------------------------------------------------
 function canEnter(g, u, x, y) {
@@ -124,7 +164,7 @@ function moveUnitTo(g, u, nx, ny) {
   emit(g, { t: 'move', id: u.id, from: [fx, fy], to: [nx, ny] });
   if (def.slime) g.fx.slime[key(fx, fy)] = 6;
   if (def.icy && tile(g, fx, fy) === T.FLOOR) setTile(g, fx, fy, T.ICE);
-  if (def.eater) spoilCell(g, nx, ny, 4);
+  if (def.eater) spoilCell(g, nx, ny, 5); // ticks once in this turn's upkeep
   trapCheck(g, u);
 }
 
@@ -140,8 +180,7 @@ function goalsFor(g, u, target) {
   const def = ENEMIES[u.type];
   const pat = def.pattern === 'none' ? 'orth1' : def.pattern;
   // patterns are symmetric, so "tiles from which target is in pattern" == pattern around target
-  let goals = patternTiles(g, pat === 'line' || pat === 'charge' ? pat : pat, target.x, target.y, def.range || 4)
-    .filter(([x, y]) => !(x === u.x && y === u.y) || true);
+  let goals = patternTiles(g, pat, target.x, target.y, def.range || 4);
   if (def.ranged) {
     const far = goals.filter(([x, y]) => manhattan(x, y, target.x, target.y) >= 2);
     if (far.length) goals = far;
@@ -173,27 +212,70 @@ function moveEnemy(g, u) {
     if (!step) return;
     moveUnitTo(g, u, step[0], step[1]);
     if (u.hp <= 0) return;
-    if (target && inPattern(g, u, target.x, target.y)) return;
+    if (target && inReach(g, u, target.x, target.y)) return;
   }
 }
 
-function attack(g, u, target) {
+// Telegraph an attack on the target if it is in reach.
+function planAttack(g, u, dmgOverride) {
   const def = ENEMIES[u.type];
-  const dmg = def.dmg + (u.elite ? 0 : 0);
-  const dx = Math.sign(target.x - u.x), dy = Math.sign(target.y - u.y);
-  if (dx === 0 || dy === 0) u.facing = [dx, dy];
-  if (effectivePattern(u) === 'charge' && manhattan(u.x, u.y, target.x, target.y) > 1) {
-    // rush to the square adjacent to the target
-    const tx = target.x - dx, ty = target.y - dy;
-    emit(g, { t: 'move', id: u.id, from: [u.x, u.y], to: [tx, ty], dash: true });
-    u.x = tx; u.y = ty;
-    trapCheck(g, u);
-    if (u.hp <= 0) return;
+  const target = targetOf(g, u);
+  if (!target || !def.dmg || !inReach(g, u, target.x, target.y)) return false;
+  const dx = target.x - u.x, dy = target.y - u.y;
+  const pat = effectivePattern(u);
+  const dmg = dmgOverride || def.dmg;
+  const delay = def.slow ? 2 : 1;
+  if (pat === 'line' || pat === 'charge') u.intent = { kind: pat, dir: [Math.sign(dx), Math.sign(dy)], range: def.range || 4, dmg, delay };
+  else u.intent = { kind: 'rel', offs: [[dx, dy]], dmg, delay };
+  if (dx === 0 || dy === 0) u.facing = [Math.sign(dx), Math.sign(dy)];
+  return true;
+}
+
+function strike(g, u, x, y, dmg, melee) {
+  if (heroAt(g, x, y)) hurtHero(g, dmg, melee ? u : null, melee ? 'enemy' : 'area');
+  const v = unitAt(g, x, y);
+  if (v && v !== u) damageUnit(g, v, dmg, u, 'enemy');
+}
+
+function resolveIntent(g, u) {
+  const it = u.intent;
+  u.intent = null;
+  const tiles = intentTiles(g, { ...u, intent: it });
+  if (it.kind === 'rel') {
+    const [x, y] = tiles[0] || [u.x + it.offs[0][0], u.y + it.offs[0][1]];
+    if (ENEMIES[u.type].ranged) emit(g, { t: 'bolt', from: [u.x, u.y], to: [x, y], c: '#7dff6b' });
+    else emit(g, { t: 'lunge', id: u.id, x: u.x, y: u.y, to: [x, y] });
+    for (const [tx, ty] of tiles) strike(g, u, tx, ty, it.dmg, !ENEMIES[u.type].ranged);
+  } else if (it.kind === 'line') {
+    const end = tiles[tiles.length - 1];
+    if (!end) return;
+    emit(g, { t: 'bolt', from: [u.x, u.y], to: end, c: '#c7a6ff' });
+    strike(g, u, end[0], end[1], it.dmg, false);
+  } else if (it.kind === 'charge') {
+    const [dx, dy] = it.dir;
+    for (let i = 0; i <= it.range; i++) {
+      const nx = u.x + dx, ny = u.y + dy;
+      if (!inb(g, nx, ny) || isWall(g, nx, ny)) { emit(g, { t: 'bonk', x: u.x, y: u.y }); return; }
+      if (heroAt(g, nx, ny) || unitAt(g, nx, ny)) {
+        emit(g, { t: 'lunge', id: u.id, x: u.x, y: u.y, to: [nx, ny] });
+        strike(g, u, nx, ny, it.dmg, true);
+        return;
+      }
+      if (i === it.range) return;
+      emit(g, { t: 'move', id: u.id, from: [u.x, u.y], to: [nx, ny], dash: true });
+      u.x = nx; u.y = ny;
+      trapCheck(g, u);
+      if (u.hp <= 0) return;
+    }
+  } else if (it.kind === 'area') {
+    emit(g, { t: 'aoe', tiles, c: it.color || '#ff5a1f' });
+    for (const [x, y] of tiles) {
+      strike(g, u, x, y, it.dmg, false);
+      if (it.slime) g.fx.slime[key(x, y)] = 6;
+      if (it.ice && tile(g, x, y) === T.FLOOR) setTile(g, x, y, T.ICE);
+      if (it.fire) g.fx.burn[key(x, y)] = 2;
+    }
   }
-  if (def.ranged || def.pattern === 'line') emit(g, { t: 'bolt', from: [u.x, u.y], to: [target.x, target.y], c: '#c7a6ff' });
-  else emit(g, { t: 'lunge', id: u.id, x: u.x, y: u.y, to: [target.x, target.y] });
-  if (target === g.hero) hurtHero(g, dmg, u, 'enemy');
-  else damageUnit(g, target, dmg, u, 'enemy');
 }
 
 function shamanAct(g, u) {
@@ -224,63 +306,25 @@ function areaAround(g, x, y) {
   return out;
 }
 
-function resolveIntent(g, u) {
-  const it = u.intent;
-  u.intent = null;
-  if (it.kind === 'charge') {
-    const [dx, dy] = it.dir;
-    let hitHero = false;
-    for (const [x, y] of it.tiles) {
-      if (heroAt(g, x, y)) { hitHero = true; break; }
-      const v = unitAt(g, x, y);
-      if (v) { damageUnit(g, v, it.dmg, u, 'enemy'); break; }
-      if (!enemySafe(g, x, y)) break;
-      emit(g, { t: 'move', id: u.id, from: [u.x, u.y], to: [x, y], dash: true });
-      u.x = x; u.y = y;
-    }
-    if (hitHero) { emit(g, { t: 'lunge', id: u.id, x: u.x, y: u.y, to: [g.hero.x, g.hero.y] }); hurtHero(g, it.dmg, u, 'enemy'); }
-    return;
-  }
-  emit(g, { t: 'aoe', tiles: it.tiles, c: it.color || '#ff5a1f' });
-  for (const [x, y] of it.tiles) {
-    if (heroAt(g, x, y)) hurtHero(g, it.dmg, null, 'area');
-    const v = unitAt(g, x, y);
-    if (v && v.team === 'ally') damageUnit(g, v, it.dmg, null, 'blast');
-    if (it.slime) g.fx.slime[key(x, y)] = 6;
-    if (it.ice && tile(g, x, y) === T.FLOOR) setTile(g, x, y, T.ICE);
-    if (it.fire) g.fx.burn[key(x, y)] = 2;
-  }
-}
-
-function bossAct(g, u) {
-  u.timer++;
-  if (u.intent) {
-    if (--u.intent.delay > 0) return;
-    resolveIntent(g, u);
-    return;
-  }
+function bossPlan(g, u) {
   const h = g.hero;
   const hidden = h.invis > 0;
   const tm = u.timer;
-  const telegraph = (tiles, extra) => { u.intent = { tiles, delay: 1, ...extra }; emit(g, { t: 'intent', id: u.id }); };
+  const area = (tiles, extra) => { u.intent = { kind: 'area', tiles, delay: 1, ...extra }; emit(g, { t: 'intent', id: u.id }); };
   switch (u.type) {
     case 'bone_tyrant':
-      if (tm % 4 === 0) { summon(g, 'skeleton', g.depth >= 5 ? 3 : 2, u); return; }
+      if (tm % 4 === 0) { summon(g, 'skeleton', g.depth >= 5 ? 2 : 1, u); return; }
       break;
     case 'mother_slug':
       if (!u.split && u.hp <= u.maxHp / 2) { u.split = true; summon(g, 'mudling', 2, u); return; }
-      if (tm % 3 === 0 && !hidden) { telegraph(areaAround(g, h.x, h.y), { dmg: 2, slime: true, delay: 2, color: '#7dff6b' }); return; }
+      if (tm % 3 === 0 && !hidden) { area(areaAround(g, h.x, h.y), { dmg: 2, slime: true, delay: 2, color: '#7dff6b' }); return; }
       break;
     case 'frost_colossus':
-      if (tm % 3 === 0 && !hidden) { telegraph(areaAround(g, h.x, h.y), { dmg: 2, ice: true, delay: 2, color: '#9fd8ff' }); return; }
+      if (tm % 3 === 0 && !hidden) { area(areaAround(g, h.x, h.y), { dmg: 2, ice: true, delay: 2, color: '#9fd8ff' }); return; }
       break;
     case 'orc_warlord': {
       const aligned = (h.x === u.x || h.y === u.y) && manhattan(h.x, h.y, u.x, u.y) > 1;
-      if (aligned && tm % 2 === 0 && !hidden) {
-        const dir = [Math.sign(h.x - u.x), Math.sign(h.y - u.y)];
-        const tiles = ray(g, u.x, u.y, dir[0], dir[1], 8);
-        if (tiles.length) { telegraph(tiles, { kind: 'charge', dir, dmg: 3 }); return; }
-      }
+      if (aligned && tm % 2 === 0 && !hidden) { u.intent = { kind: 'charge', dir: [Math.sign(h.x - u.x), Math.sign(h.y - u.y)], range: 8, dmg: 3, delay: 1 }; return; }
       if (tm % 5 === 0) { summon(g, 'goblin', 1 + (g.depth >= 5 ? 1 : 0), u); return; }
       break;
     }
@@ -289,39 +333,37 @@ function bossAct(g, u) {
         const tiles = [];
         if ((tm / 3) % 2) for (let x = 0; x < g.map.w; x++) { if (!isWall(g, x, h.y)) tiles.push([x, h.y]); }
         else for (let y = 0; y < g.map.h; y++) { if (!isWall(g, h.x, y)) tiles.push([h.x, y]); }
-        telegraph(tiles, { dmg: 2, fire: true, color: '#ff3b1f' });
+        area(tiles, { dmg: 2, fire: true, color: '#ff3b1f' });
         return;
       }
       if (tm % 5 === 1) { summon(g, 'imp', 2, u); return; }
       break;
   }
-  const target = targetOf(g, u);
-  if (target && inPattern(g, u, target.x, target.y)) { attack(g, u, target); return; }
-  moveEnemy(g, u);
+  if (!planAttack(g, u)) { moveEnemy(g, u); planAttack(g, u); }
 }
 
 export function enemyTurn(g, u) {
   if (u.hp <= 0) return;
   const def = ENEMIES[u.type];
-  if (u.stun > 0) { u.stun--; if (u.root > 0) u.root--; return; }
-  if (def.slow) {
-    if (!u.slowReady) { u.slowReady = true; return; }
-    u.slowReady = false;
-  }
-  if (def.boss) { bossAct(g, u); if (u.root > 0) u.root--; return; }
-  if (def.healer) {
-    if (!shamanAct(g, u)) moveEnemy(g, u);
-    if (u.root > 0) u.root--;
+  const unroot = () => { if (u.root > 0) u.root--; };
+  if (u.stun > 0) {
+    u.stun--;
+    if (u.intent) { u.intent = null; emit(g, { t: 'text', x: u.x, y: u.y, s: 'CANCELLED', c: '#ffe66b' }); }
+    unroot();
     return;
   }
-  const h = g.hero;
-  if (h.invis <= 0 && inPattern(g, u, h.x, h.y)) attack(g, u, h);
-  else {
-    const ally = allies(g).find((a) => inPattern(g, u, a.x, a.y) && a.type !== 'geode') || allies(g).find((a) => inPattern(g, u, a.x, a.y));
-    if (ally) attack(g, u, ally);
-    else moveEnemy(g, u);
+  u.timer = (u.timer || 0) + 1;
+  if (u.intent) {
+    if (--u.intent.delay > 0) { unroot(); return; }
+    resolveIntent(g, u);
+    if (u.hp <= 0 || g.phase !== 'play') return;
+    if (def.boss) { unroot(); return; } // bosses catch their breath after a strike
   }
-  if (u.root > 0) u.root--;
+  if (def.healer) { if (!shamanAct(g, u)) moveEnemy(g, u); unroot(); return; }
+  if (def.boss) { bossPlan(g, u); unroot(); return; }
+  if (!def.slow || u.timer % 2 === 0) moveEnemy(g, u);
+  if (u.hp > 0) planAttack(g, u);
+  unroot();
 }
 
 export function allyTurn(g, a) {

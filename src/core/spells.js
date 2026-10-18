@@ -40,22 +40,19 @@ function placeTempWall(g, x, y, turns) {
 }
 
 export const SPELLS = {
-  // ======================= KNIGHT =======================
-  slash: { cls: 'knight', tier: 's', name: 'Slash', cd: 1, freq: 3, icon: 'weapon_regular_sword',
-    desc: 'The square in front of you takes 2.',
-    cast(g, c) {
-      const h = H(g), x = h.x + c.dx, y = h.y + c.dy;
-      aoe(g, [[x, y]], '#e8e8e8');
-      hit(g, enemyAt(g, x, y), 2 + c.P);
-    } },
-  cleave: { cls: 'knight', tier: 's', name: 'Cleave', cd: 3, icon: 'weapon_axe',
-    desc: 'Hit the 3 squares in front of you for 2.',
-    cast(g, c) {
-      const h = H(g), ax = h.x + c.dx, ay = h.y + c.dy;
-      const tiles = [[ax, ay], ...perp(c.dx, c.dy).map(([px, py]) => [ax + px, ay + py])];
-      aoe(g, tiles, '#e8e8e8');
-      tiles.forEach(([x, y]) => hit(g, enemyAt(g, x, y), 2 + c.P));
-    } },
+  // ======================= KNIGHT (ranged) =======================
+  shield_throw: { cls: 'knight', tier: 's', name: 'Shield Throw', cd: 1, freq: 3, icon: 'weapon_knight_sword',
+    desc: 'The first enemy in a line (range 5) takes 1 and is knocked back 1.',
+    cast(g, c) { const u = shootFirst(g, c, 5, 1 + c.P, '#c9d4e8'); if (u && u.hp > 0) pushUnit(g, u, c.dx, c.dy, 1); } },
+  smite: { cls: 'knight', tier: 's', name: 'Smite', cd: 3, icon: 'weapon_golden_sword',
+    desc: 'The first enemy in a line takes 2 and is stunned (its attack is cancelled).',
+    cast(g, c) { const u = shootFirst(g, c, 99, 2 + c.P, '#fff3a0'); if (u && u.hp > 0) u.stun = Math.max(u.stun, 1); } },
+  lance: { cls: 'knight', tier: 's', name: 'Lance', cd: 3, icon: 'weapon_spear',
+    desc: 'Pierce: every enemy in a line (range 4) takes 2.',
+    cast(g, c) { pierce(g, c, 4, 2 + c.P, '#e8e8e8'); } },
+  bulwark: { cls: 'knight', tier: 's', name: 'Bulwark', cd: 5, icon: 'weapon_knight_sword',
+    desc: 'Gain 2 Block (absorbs damage this floor).',
+    cast(g, c) { H(g).block += 2 + c.lv; emit(g, { t: 'text', x: H(g).x, y: H(g).y, s: '+BLOCK', c: '#8ecbff' }); } },
   charge: { cls: 'knight', tier: 'b', name: 'Charge', cd: 4, icon: 'weapon_spear',
     desc: 'Dash forward up to 4 squares. If you slam into an enemy: 2 damage and stun it.',
     cast(g, c) {
@@ -72,28 +69,22 @@ export const SPELLS = {
       if (tx !== h.x || ty !== h.y) c.moveHero(tx, ty, c.dx, c.dy, true);
       if (target && target.hp > 0) { hit(g, target, 2 + c.P); if (target.hp > 0) target.stun = Math.max(target.stun, 1); }
     } },
-  shield_bash: { cls: 'knight', tier: 's', name: 'Shield Bash', cd: 3, icon: 'weapon_mace',
-    desc: 'Enemy in front takes 1, is knocked back 2 and stunned.',
+  holy_nova: { cls: 'knight', tier: 'b', name: 'Holy Nova', cd: 5, icon: 'flask_big_yellow',
+    desc: 'Every enemy within 3 squares takes 1.',
     cast(g, c) {
-      const h = H(g), u = enemyAt(g, h.x + c.dx, h.y + c.dy);
-      aoe(g, [[h.x + c.dx, h.y + c.dy]], '#8ecbff');
-      if (!u) return;
-      hit(g, u, 1 + c.P);
-      if (u.hp > 0) { u.stun = Math.max(u.stun, 1); pushUnit(g, u, c.dx, c.dy, 2); }
+      const h = H(g), us = enemies(g).filter((u) => manhattan(u.x, u.y, h.x, h.y) <= 3);
+      aoe(g, us.map((u) => [u.x, u.y]), '#fff3a0');
+      us.forEach((u) => hit(g, u, 1 + c.P));
     } },
-  bulwark: { cls: 'knight', tier: 's', name: 'Bulwark', cd: 5, icon: 'weapon_knight_sword',
-    desc: 'Gain 2 Block (absorbs damage this floor).',
-    cast(g, c) { H(g).block += 2 + c.lv; emit(g, { t: 'text', x: H(g).x, y: H(g).y, s: '+BLOCK', c: '#8ecbff' }); } },
-  whirlwind: { cls: 'knight', tier: 'b', name: 'Whirlwind', cd: 5, icon: 'weapon_double_axe',
-    desc: 'Deal 2 to all 8 surrounding squares.',
+  javelin_rain: { cls: 'knight', tier: 'b', name: 'Javelin Rain', cd: 4, icon: 'weapon_throwing_axe',
+    desc: 'Artillery: the 3x3 area centred 3 squares ahead takes 1.',
     cast(g, c) {
-      const h = H(g), tiles = around8(h.x, h.y);
-      aoe(g, tiles, '#e8e8e8');
-      tiles.forEach(([x, y]) => hit(g, enemyAt(g, x, y), 2 + c.P));
+      const h = H(g), cx = h.x + c.dx * 3, cy = h.y + c.dy * 3, tiles = [];
+      for (let y = cy - 1; y <= cy + 1; y++) for (let x = cx - 1; x <= cx + 1; x++) if (inb(g, x, y) && !isWall(g, x, y)) tiles.push([x, y]);
+      bolt(g, [h.x, h.y], [cx, cy], '#c9d4e8');
+      aoe(g, tiles, '#c9d4e8');
+      tiles.forEach(([x, y]) => hit(g, enemyAt(g, x, y), 1 + c.P));
     } },
-  lance: { cls: 'knight', tier: 'b', name: 'Lance', cd: 4, icon: 'weapon_spear',
-    desc: 'Pierce: every enemy in a line (range 3) takes 2.',
-    cast(g, c) { pierce(g, c, 3, 2 + c.P, '#e8e8e8'); } },
   rally: { cls: 'knight', tier: 'b', name: 'Rally', cd: 8, icon: 'flask_big_red',
     desc: 'Heal 2.',
     cast(g, c) { healHero(g, 2 + c.lv); } },
@@ -118,22 +109,21 @@ export const SPELLS = {
   riposte: { cls: 'knight', tier: 'l', name: 'Riposte', cd: 4, icon: 'weapon_duel_sword',
     desc: 'The next enemy attack against you is parried and the attacker takes 3.',
     cast(g, c) { H(g).riposte = 1; emit(g, { t: 'text', x: H(g).x, y: H(g).y, s: 'EN GARDE', c: '#fff36b' }); } },
-  earthshaker: { cls: 'knight', tier: 'l', name: 'Earthshaker', cd: 6, icon: 'weapon_big_hammer',
-    desc: 'All enemies within 2 squares take 1 and are stunned.',
+  judgement: { cls: 'knight', tier: 'l', name: 'Judgement', cd: 6, icon: 'weapon_lavish_sword',
+    desc: 'Every enemy in your row and your column takes 2.',
     cast(g, c) {
-      const h = H(g), tiles = [];
-      for (let y = h.y - 2; y <= h.y + 2; y++) for (let x = h.x - 2; x <= h.x + 2; x++) if (manhattan(x, y, h.x, h.y) <= 2 && (x !== h.x || y !== h.y)) tiles.push([x, y]);
-      aoe(g, tiles, '#c8a26b');
-      tiles.forEach(([x, y]) => { const u = enemyAt(g, x, y); if (u) { hit(g, u, 1 + c.P); if (u.hp > 0) u.stun = Math.max(u.stun, 1); } });
+      const h = H(g);
+      for (const [dx, dy] of ORTH) { const { us } = pierce(g, { ...c, dx, dy }, 99, 0, '#fff3a0'); us.forEach((u) => hit(g, u, 2 + c.P)); }
     } },
-  execute: { cls: 'knight', tier: 'l', name: 'Execute', cd: 4, icon: 'weapon_lavish_sword',
-    desc: 'Enemy in front: slain outright if it has 4 HP or less (bosses take 4).',
+  execute: { cls: 'knight', tier: 'l', name: 'Execute', cd: 4, icon: 'weapon_red_gem_sword',
+    desc: 'First enemy in a line (range 4): slain outright if it has 3 HP or less, otherwise takes 2.',
     cast(g, c) {
-      const h = H(g), u = enemyAt(g, h.x + c.dx, h.y + c.dy);
-      aoe(g, [[h.x + c.dx, h.y + c.dy]], '#ff4d4d');
+      const h = H(g), u = firstEnemyInRay(g, h.x, h.y, c.dx, c.dy, 4);
+      const tiles = ray(g, h.x, h.y, c.dx, c.dy, 4, true);
+      if (tiles.length) bolt(g, [h.x, h.y], tiles[tiles.length - 1], '#ff4d4d');
       if (!u) return;
-      if (!u.boss && u.hp <= 4 + c.lv) { emit(g, { t: 'hit', id: u.id, x: u.x, y: u.y, n: u.hp }); killUnit(g, u, 'spell'); }
-      else hit(g, u, 4 + c.P);
+      if (!u.boss && u.hp <= 3 + c.lv) { emit(g, { t: 'hit', id: u.id, x: u.x, y: u.y, n: u.hp }); killUnit(g, u, 'spell'); }
+      else hit(g, u, 2 + c.P);
     } },
 
   // ======================= PYROMANCER =======================
@@ -367,7 +357,12 @@ export const SPELLS = {
     cast(g, c) { H(g).block += 2 + c.lv; emit(g, { t: 'text', x: H(g).x, y: H(g).y, s: '+BLOCK', c: '#c8a26b' }); } },
   quake: { cls: 'geo', tier: 'b', name: 'Quake', cd: 6, icon: 'weapon_big_hammer',
     desc: 'All enemies within 2 squares take 1 and are stunned.',
-    cast(g, c) { SPELLS.earthshaker.cast(g, c); } },
+    cast(g, c) {
+      const h = H(g), tiles = [];
+      for (let y = h.y - 2; y <= h.y + 2; y++) for (let x = h.x - 2; x <= h.x + 2; x++) if (manhattan(x, y, h.x, h.y) <= 2 && (x !== h.x || y !== h.y)) tiles.push([x, y]);
+      aoe(g, tiles, '#c8a26b');
+      tiles.forEach(([x, y]) => { const u = enemyAt(g, x, y); if (u) { hit(g, u, 1 + c.P); if (u.hp > 0) u.stun = Math.max(u.stun, 1); } });
+    } },
   tremor: { cls: 'geo', tier: 'b', name: 'Tremor', cd: 3, icon: 'floor_ladder',
     desc: 'Push every adjacent enemy (incl. diagonal) 2 squares away.',
     cast(g, c) {
