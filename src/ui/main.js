@@ -59,8 +59,47 @@ function renderTitle() {
   }
   const img = genImage('title');
   const tImg = $('#title-img');
-  if (img) { tImg.src = img.src; tImg.parentElement.classList.remove('hidden'); }
-  else tImg.parentElement.classList.add('hidden');
+  if (img) { tImg.src = img.src; tImg.classList.remove('hidden'); $('#title-canvas')?.remove(); }
+  else if (!$('#title-canvas')) { tImg.classList.add('hidden'); titleScene(); }
+}
+
+// Animated diorama of heroes facing monsters (fallback when there is no generated key art).
+function titleScene() {
+  const c = el('canvas');
+  c.id = 'title-canvas';
+  c.width = 224; c.height = 98;
+  $('.title-art').append(c);
+  const ctx = c.getContext('2d');
+  const heroes = CLASS_ORDER.map((k) => CLASSES[k].sprite);
+  const foes = ['skelet_idle', 'imp_idle', 'goblin_idle', 'orc_warrior_idle', 'chort_idle', 'necromancer'];
+  const tick = (t) => {
+    if (!c.isConnected) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#0b0810'; ctx.fillRect(0, 0, 224, 98);
+    for (let x = 0; x < 14; x++) { const w = sprite('wall_mid'); if (w.complete) ctx.drawImage(w, x * 16, 18); }
+    for (let y = 0; y < 4; y++) for (let x = 0; x < 14; x++) { const f = sprite((x * 7 + y * 3) % 9 ? 'floor_1' : 'floor_' + (2 + ((x + y) % 6))); if (f.complete) ctx.drawImage(f, x * 16, 34 + y * 16); }
+    const banner = sprite('wall_banner_red'); if (banner.complete) { ctx.drawImage(banner, 48, 18); ctx.drawImage(banner, 160, 18); }
+    const fnt = sprite('wall_fountain_mid_blue', t, 5); if (fnt?.complete) ctx.drawImage(fnt, 104, 18);
+    const spells = ['weapon_red_magic_staff', 'weapon_axe', 'weapon_bow', 'flask_big_blue'];
+    spells.forEach((s, i) => {
+      const x = 40 + i * 44, y = 66 + (i % 2) * 14;
+      ctx.globalAlpha = 0.35 + 0.2 * Math.sin(t / 300 + i);
+      ctx.fillStyle = ['#ff8a3d', '#c9d4e8', '#8fd16a', '#7de0c8'][i];
+      ctx.beginPath(); ctx.arc(x + 8, y + 8, 8, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+      const im = sprite(s); if (im.complete) ctx.drawImage(im, x + 8 - im.naturalWidth / 2 * 0.6, y + 8 - im.naturalHeight / 2 * 0.6, im.naturalWidth * 0.6, im.naturalHeight * 0.6);
+    });
+    heroes.forEach((h, i) => { const im = sprite(h + '_idle', t + i * 200); if (im.complete) ctx.drawImage(im, 6 + i * 15 + (i % 2) * 4, 50 + (i % 2) * 12 - 6); });
+    foes.forEach((f, i) => {
+      const im = sprite(f, t + i * 170);
+      if (!im.complete) return;
+      ctx.save(); ctx.translate(218 - i * 13, 0); ctx.scale(-1, 1);
+      ctx.drawImage(im, 0, 74 - im.naturalHeight + (i % 2) * 14 - 4);
+      ctx.restore();
+    });
+    const boss = sprite('big_demon_idle', t); if (boss.complete) { ctx.save(); ctx.translate(150, 0); ctx.scale(-1, 1); ctx.drawImage(boss, -30, 30); ctx.restore(); }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 
 $('#btn-new').addEventListener('click', () => { sfx('pick'); show('class'); });
@@ -173,6 +212,7 @@ async function doAction(a) {
   g.events = [];
   updateHud();
   saveRun();
+  R.preview = null;
   await R.play(evs);
   updateHud();
   afterTurn();
@@ -193,6 +233,7 @@ function afterTurn() {
   else if (g.phase === 'path') pathModal();
   else if (g.phase === 'dead' || g.phase === 'won') endModal();
   describe(R.hover);
+  R.preview = previewMove(R.hover);
 }
 
 function banner(html) {
@@ -317,10 +358,32 @@ canvas.addEventListener('pointermove', (e) => {
   if (e.pointerType === 'mouse') {
     const r = canvas.getBoundingClientRect();
     const t = R.tileAtPx(e.clientX - r.left, e.clientY - r.top);
-    if (String(t) !== String(R.hover)) { R.hover = t; describe(t); }
+    if (String(t) !== String(R.hover)) { R.hover = t; describe(t); R.preview = previewMove(t); }
   }
 });
-canvas.addEventListener('pointerleave', () => { R.hover = null; });
+canvas.addEventListener('pointerleave', () => { R.hover = null; R.preview = null; });
+
+// Simulate the hero's half of a move on a clone, to preview spell/bump results.
+function previewMove(t) {
+  if (!g || !t || g.phase !== 'play' || R.busy) return null;
+  const dx = t[0] - g.hero.x, dy = t[1] - g.hero.y;
+  if (Math.abs(dx) + Math.abs(dy) !== 1) return null;
+  const c = JSON.parse(JSON.stringify(g));
+  c.quiet = true;
+  if (!act(c, dx === 1 ? 'right' : dx === -1 ? 'left' : dy === 1 ? 'down' : 'up', { heroOnly: true })) return null;
+  const marks = [];
+  for (const u of g.units) {
+    if (u.team !== 'enemy') continue;
+    const v = c.units.find((q) => q.id === u.id);
+    if (!v) marks.push({ x: u.x, y: u.y, s: 'KO', c: '#ffcf5a' });
+    else {
+      if (v.hp < u.hp) marks.push({ x: v.x, y: v.y, s: '-' + (u.hp - v.hp), c: '#ffcf5a' });
+      if (v.x !== u.x || v.y !== u.y) marks.push({ x: v.x, y: v.y, s: '●', c: '#ffffff88', from: [u.x, u.y] });
+      if (v.stun > u.stun) marks.push({ x: v.x, y: v.y, s: 'Z', c: '#ffe66b', dy: 0.35 });
+    }
+  }
+  return { marks, hero: [c.hero.x, c.hero.y], heroDmg: g.hero.hp - c.hero.hp };
+}
 canvas.addEventListener('pointerup', (e) => {
   if (!touch || !g) return;
   const dx = e.clientX - touch.x, dy = e.clientY - touch.y;
@@ -359,7 +422,8 @@ function spellCard(id, extra = '') {
 function draftModal() {
   const d = g.draft;
   const h = g.hero;
-  modal(`<h2>Floor ${g.floor} cleared${d.swift ? ' — SWIFT!' : ''}</h2>
+  modal(`<h2>Floor ${g.floor} cleared</h2>
+    <p>${['+1 ✦ cleared', d.swift && '+1 ✦ SWIFT (extra draft option)', g.lastFlawless && '+1 ✦ FLAWLESS', g.isBoss && '+3 ✦ BOSS'].filter(Boolean).map((t) => `<span class="ember" style="margin:0 6px">${t.replace('✦ ', '')}</span>`).join('')}</p>
     <p>Add a spell to your deck${h.deck.length >= h.slots ? ' (replacing one)' : ''}, or empower one you have. Then heal ${healBetween(g)}.</p>
     <div class="cards" id="m-cards"></div><div id="m-replace"></div>
     <div class="row-btns"><button class="btn ghost" id="m-skip">Skip (+1 HP)</button>${h.rerolls ? `<button class="btn" id="m-reroll">Reroll (${h.rerolls})</button>` : ''}</div>`);

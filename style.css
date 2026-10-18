@@ -37,7 +37,7 @@ kbd { font-family: var(--body); background: #0008; border: 1px solid var(--line)
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .ember { color: var(--ember); font-family: var(--head); font-size: 10px; }
 .ember.big { font-size: 12px; }
-.ember::before { content: '✦ '; }
+.ember::before { content: "✦ "; }
 
 /* Title */
 #scr-title { justify-content: center; gap: 14px; text-align: center; }

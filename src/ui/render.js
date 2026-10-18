@@ -278,6 +278,16 @@ export class Renderer {
       ctx.strokeRect(X(hx) + 0.5, Y(hy) + 0.5, ts - 1, ts - 1);
     }
 
+    // move preview (hover on an adjacent square)
+    if (this.preview && !this.busy) {
+      const p = this.preview;
+      ctx.strokeStyle = CLASSES[g.cls].color; ctx.lineWidth = 2; ctx.setLineDash([3, 3]);
+      ctx.strokeRect(X(p.hero[0]) + 3, Y(p.hero[1]) + 3, ts - 6, ts - 6); ctx.setLineDash([]);
+      for (const m of p.marks) {
+        if (m.from) { ctx.strokeStyle = '#ffffff66'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(X(m.from[0]) + ts / 2, Y(m.from[1]) + ts / 2); ctx.lineTo(X(m.x) + ts / 2, Y(m.y) + ts / 2); ctx.stroke(); }
+      }
+    }
+
     // units sorted by y, hero included
     const k = 1 - Math.pow(0.0005, dt);
     const list = [...this.vis.units.values()];
@@ -290,6 +300,10 @@ export class Renderer {
       else this.drawUnit(ctx, d.v, now);
     }
 
+    if (this.preview && !this.busy) {
+      for (const m of this.preview.marks) this.label(ctx, X(m.x) + ts / 2, Y(m.y) + ts * (0.25 + (m.dy || 0)), m.s, m.c, 'center', 12);
+      if (this.preview.heroDmg > 0) this.label(ctx, X(this.preview.hero[0]) + ts / 2, Y(this.preview.hero[1]) + ts * 0.25, '-' + this.preview.heroDmg, '#ff4d4d', 'center', 12);
+    }
     // fx
     this.fx = this.fx.filter((f) => now - f.t0 < f.dur);
     for (const f of this.fx) {

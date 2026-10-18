@@ -87,9 +87,10 @@ export function bumpDamage(g, u) {
 }
 
 // Returns false if the action was illegal (no turn spent).
-export function act(g, action) {
+export function act(g, action, opts = {}) {
   if (g.phase !== 'play') return false;
   g.events = [];
+  g.turnKills = 0;
   const h = g.hero;
   if (action !== 'wait') {
     const [dx, dy] = DIRS[action];
@@ -118,6 +119,11 @@ export function act(g, action) {
   }
   g.stats.turns++;
   g.floorTurns++;
+  if (g.turnKills >= 2) {
+    emit(g, { t: 'text', x: h.x, y: h.y - 1, s: ['', '', 'DOUBLE KILL', 'TRIPLE KILL', 'MASSACRE'][Math.min(4, g.turnKills)], c: '#ffcf5a' });
+    g.stats.bestMulti = Math.max(g.stats.bestMulti || 0, g.turnKills);
+  }
+  if (opts.heroOnly) return true;
   if (checkEnd(g)) return true;
   // allies, then enemies
   for (const a of allies(g)) allyTurn(g, a);
@@ -200,10 +206,12 @@ function floorCleared(g) {
   s.hpByFloor.push(g.hero.hp);
   s.turnsByFloor.push(g.floorTurns);
   g.floorCasts = 0;
-  let e = 1 + (swift ? 1 : 0) + (g.isBoss ? 3 : 0) + (g.hero.relics.includes('ember_heart') ? 1 : 0);
+  const flawless = g.floorDmg === 0;
+  let e = 1 + (swift ? 1 : 0) + (flawless ? 1 : 0) + (g.isBoss ? 3 : 0) + (g.hero.relics.includes('ember_heart') ? 1 : 0);
   s.embers += e;
   g.lastSwift = swift;
-  emit(g, { t: 'cleared', swift, embers: e });
+  g.lastFlawless = flawless;
+  emit(g, { t: 'cleared', swift, flawless, embers: e });
   if (g.floor >= TOTAL_FLOORS) { s.embers += 10 + g.depth * 2; finishRun(g, true); return; }
   g.phase = 'draft';
   g.draft = makeDraft(g, swift);

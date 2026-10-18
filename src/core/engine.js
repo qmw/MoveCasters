@@ -133,6 +133,7 @@ export function killUnit(g, u, kind) {
   emit(g, { t: 'death', id: u.id, x: u.x, y: u.y, type: u.type });
   if (u.team !== 'enemy') return;
   g.stats.kills++;
+  g.turnKills = (g.turnKills || 0) + 1;
   g.stats.killsByType[u.type] = (g.stats.killsByType[u.type] || 0) + 1;
   if (u.boss) g.stats.bossKills.push(u.type);
   const k = key(u.x, u.y);

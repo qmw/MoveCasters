@@ -83,7 +83,7 @@ function castGain(a, b) {
   const after = new Map(b.units.filter((u) => u.team === 'enemy').map((u) => [u.id, u]));
   for (const u of a.units) {
     if (u.team !== 'enemy' || u.hp <= 0) continue;
-    const w = u.boss ? 1.6 : 1;
+    const w = u.boss ? 5 : 1;
     const v2 = after.get(u.id);
     if (!v2 || v2.hp <= 0) v += (u.hp + 1.5) * w;
     else {
@@ -128,7 +128,7 @@ export function evalState(g, opps = null) {
   const es = enemies(g);
   let ehp = 0, nearest = 99;
   for (const u of es) {
-    ehp += u.boss ? u.hp * 1.6 : u.hp;
+    ehp += u.boss ? u.hp * 5 : u.hp;
     if (u.stun > 0) s += 6;
     s += Math.min(u.poison, u.hp) * 12;
     if (u.curse > 0) s += 6;
@@ -147,7 +147,7 @@ export function evalState(g, opps = null) {
   s -= Math.min(sd, 12) * 3;
   if (opps && opps.length) {
     let best = 0;
-    for (const o of opps) best = Math.max(best, o.v * 14 - Math.min(dm[o.y * W + o.x], 20) * 5);
+    for (const o of opps) best = Math.max(best, o.v * 25 - Math.min(dm[o.y * W + o.x], 20) * 5);
     s += best;
   }
   if (es.length) s -= Math.min(nearest, 12) * 3;
