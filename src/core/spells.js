@@ -47,7 +47,7 @@ export const SPELLS = {
   smite: { cls: 'knight', tier: 's', name: 'Smite', cd: 3, icon: 'weapon_golden_sword',
     desc: 'The first enemy in a line takes 2 and is stunned (its attack is cancelled).',
     cast(g, c) { const u = shootFirst(g, c, 99, 2 + c.P, '#fff3a0'); if (u && u.hp > 0) u.stun = Math.max(u.stun, 1); } },
-  lance: { cls: 'knight', tier: 's', name: 'Lance', cd: 3, icon: 'weapon_spear',
+  lance: { cls: 'knight', tier: 'b', name: 'Lance', cd: 3, icon: 'weapon_spear',
     desc: 'Pierce: every enemy in a line (range 4) takes 2.',
     cast(g, c) { pierce(g, c, 4, 2 + c.P, '#e8e8e8'); } },
   bulwark: { cls: 'knight', tier: 's', name: 'Bulwark', cd: 5, icon: 'weapon_knight_sword',
@@ -69,7 +69,7 @@ export const SPELLS = {
       if (tx !== h.x || ty !== h.y) c.moveHero(tx, ty, c.dx, c.dy, true);
       if (target && target.hp > 0) { hit(g, target, 2 + c.P); if (target.hp > 0) target.stun = Math.max(target.stun, 1); }
     } },
-  holy_nova: { cls: 'knight', tier: 'b', name: 'Holy Nova', cd: 5, icon: 'flask_big_yellow',
+  holy_nova: { cls: 'knight', tier: 's', name: 'Holy Nova', cd: 5, icon: 'flask_big_yellow',
     desc: 'Every enemy within 3 squares takes 1.',
     cast(g, c) {
       const h = H(g), us = enemies(g).filter((u) => manhattan(u.x, u.y, h.x, h.y) <= 3);
@@ -228,8 +228,8 @@ export const SPELLS = {
 
   // ======================= RANGER =======================
   arrow: { cls: 'ranger', tier: 's', name: 'Arrow', cd: 1, freq: 3, icon: 'weapon_arrow',
-    desc: 'The first enemy in a line takes 2.',
-    cast(g, c) { shootFirst(g, c, 99, 2 + c.P, '#d9f0a3'); } },
+    desc: 'The first enemy in a line takes 2 and is knocked back 1.',
+    cast(g, c) { const u = shootFirst(g, c, 99, 2 + c.P, '#d9f0a3'); if (u && u.hp > 0) pushUnit(g, u, c.dx, c.dy, 1); } },
   vault: { cls: 'ranger', tier: 'b', name: 'Vault', cd: 3, icon: 'weapon_bow',
     desc: 'Leap 2 squares backward, then loose an arrow forward for 1.',
     cast(g, c) {
@@ -418,22 +418,25 @@ export const SPELLS = {
       if (v) { bolt(g, [u.x, u.y], [v.x, v.y], '#b18cff'); hit(g, v, 1 + c.P); }
     } },
   shadowstep: { cls: 'shadow', tier: 's', name: 'Shadowstep', cd: 3, icon: 'lizard_m_idle_anim',
-    desc: 'Teleport behind the first enemy in a line (range 5) and stun it.',
+    desc: 'Teleport behind the first enemy in a line (range 5), stun it and stab it for 1 (+2 Backstab).',
     cast(g, c) {
       const h = H(g), u = firstEnemyInRay(g, h.x, h.y, c.dx, c.dy, 5);
       if (!u) return;
       u.stun = Math.max(u.stun, 1 + c.lv);
+      hit(g, u, 1 + c.P);
+      if (u.hp <= 0) return;
       const bx = u.x + c.dx, by = u.y + c.dy;
       if (standable(g, bx, by) && !occupied(g, bx, by) && tile(g, bx, by) !== T.LAVA) c.moveHero(bx, by, c.dx, c.dy, true);
     } },
   swap: { cls: 'shadow', tier: 's', name: 'Swap', cd: 3, icon: 'doors_leaf_open',
-    desc: 'Swap places with the first enemy in a line. It is stunned.',
+    desc: 'Swap places with the first enemy in a line. It is stunned and takes 1 (+2 Backstab).',
     cast(g, c) {
       const h = H(g), u = firstEnemyInRay(g, h.x, h.y, c.dx, c.dy);
       if (!u || u.boss) return;
       const ox = h.x, oy = h.y, ux = u.x, uy = u.y;
       emit(g, { t: 'move', id: u.id, from: [ux, uy], to: [ox, oy], push: true });
       u.x = ox; u.y = oy; u.stun = Math.max(u.stun, 1 + c.lv);
+      hit(g, u, 1 + c.P);
       c.moveHero(ux, uy, c.dx, c.dy, false);
     } },
   smoke: { cls: 'shadow', tier: 's', name: 'Smoke', cd: 5, icon: 'wall_fountain_top_1',
@@ -524,11 +527,13 @@ export const SPELLS = {
   curse: { cls: 'hexer', tier: 's', name: 'Curse', cd: 4, icon: 'skull',
     desc: 'First enemy in a line takes 1 and is Cursed 3 turns (takes double damage).',
     cast(g, c) { const u = shootFirst(g, c, 99, 1 + c.P, '#7de0c8'); if (u && u.hp > 0) u.curse = Math.max(u.curse, 3 + c.lv); } },
-  corpse_explosion: { cls: 'hexer', tier: 'b', name: 'Corpse Explosion', cd: 5, icon: 'bomb_f1',
-    desc: 'Every corpse on the floor explodes: 1 damage to its 8 neighbours.',
+  corpse_explosion: { cls: 'hexer', tier: 'b', name: 'Corpse Explosion', cd: 6, freq: 1, icon: 'bomb_f1',
+    desc: 'The 3 corpses nearest to you explode: 1 damage to each of their 8 neighbours.',
     cast(g, c) {
-      const cs = Object.keys(g.fx.corpse).map((k) => k.split(',').map(Number));
-      g.fx.corpse = {};
+      const h = H(g);
+      const cs = Object.keys(g.fx.corpse).map((k) => k.split(',').map(Number))
+        .sort((a, b) => manhattan(a[0], a[1], h.x, h.y) - manhattan(b[0], b[1], h.x, h.y)).slice(0, 3);
+      cs.forEach(([x, y]) => delete g.fx.corpse[key(x, y)]);
       for (const [cx, cy] of cs) {
         const tiles = around8(cx, cy);
         aoe(g, tiles, '#7de0c8');

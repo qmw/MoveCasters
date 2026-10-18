@@ -20,16 +20,16 @@ export const CLASSES = {
     role: 'Ranged guardian: thrown shields, lances and holy light.', color: '#c9d4e8',
     passive: 'Steel — the first hit you take each floor is blocked.',
     unlock: null,
-    starters: ['shield_throw', 'smite', 'lance', 'bulwark'],
+    starters: ['shield_throw', 'smite', 'holy_nova', 'bulwark'],
   },
   pyro: {
-    name: 'Pyromancer', sprite: 'wizzard_m', hp: 5, color: '#ff8a3d',
+    name: 'Pyromancer', sprite: 'wizzard_m', hp: 4, color: '#ff8a3d',
     passive: 'Kindling — spell kills set the ground ablaze. You are immune to fire.',
     unlock: { kind: 'reachFloor', n: 4, text: 'Reach floor 4' },
     starters: ['firebolt', 'flame_wave', 'fire_ring', 'heat_shield'],
   },
   ranger: {
-    name: 'Ranger', sprite: 'elf_f', hp: 7, color: '#8fd16a',
+    name: 'Ranger', sprite: 'elf_f', hp: 8, color: '#8fd16a',
     passive: 'Steady Aim — after waiting, your next spell deals +1.',
     unlock: { kind: 'kills', n: 60, text: 'Slay 60 enemies (all runs)' },
     starters: ['arrow', 'hawk', 'bear_trap', 'piercing_shot'],
@@ -47,7 +47,7 @@ export const CLASSES = {
     starters: ['shuriken', 'shadowstep', 'swap', 'smoke'],
   },
   hexer: {
-    name: 'Hexer', sprite: 'wizzard_f', hp: 6, color: '#7de0c8',
+    name: 'Hexer', sprite: 'wizzard_f', hp: 5, color: '#7de0c8',
     passive: 'Harvest — foes leave corpses. Step on a corpse to heal 1 (once per floor).',
     unlock: { kind: 'boss', id: 'orc_warlord', text: 'Defeat the Orc Warlord' },
     starters: ['bone_spear', 'life_drain', 'raise_dead', 'curse'],
@@ -159,6 +159,14 @@ export const DEPTH_MODS = [
   { text: 'Start with only 3 spells' },
   { text: 'Hero has -1 max HP' },
 ];
+
+// Tuning knobs (overridable in tools/sim.js with --set BALANCE.x=y)
+export const BALANCE = {
+  capBase: 3, capSlope: 1.2, // max starting enemies = capBase + capSlope * floor
+  budMul: 1.6, budSlope: 0.3, // budget multiplier = budMul + budSlope * floor
+  reinfBase: 2, reinfEvery: 2, reinfSlope: 0.5, // reinforcements per floor = reinfBase + reinfSlope * floor
+  bossHpMul: 1.5, eliteChance: 0.3, // HP multiplier for bosses; chance an enemy is elite (+1 HP) at depth 0
+};
 
 export const FLOORS_PER_BIOME = 3;
 export const TOTAL_FLOORS = 12;

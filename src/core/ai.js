@@ -366,7 +366,6 @@ export function enemyTurn(g, u) {
     if (--u.intent.delay > 0) { unroot(); return; }
     resolveIntent(g, u);
     if (u.hp <= 0 || g.phase !== 'play') return;
-    if (def.boss) { unroot(); return; } // bosses catch their breath after a strike
   }
   if (def.healer) { if (!shamanAct(g, u)) moveEnemy(g, u); unroot(); return; }
   if (def.boss) { bossPlan(g, u); unroot(); return; }

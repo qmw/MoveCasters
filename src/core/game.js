@@ -1,5 +1,5 @@
 // Run state machine and turn loop. Pure & deterministic given the seed.
-import { T, DIRS, CLASSES, RELICS, TOTAL_FLOORS, FLOORS_PER_BIOME, BIOMES } from './data.js';
+import { T, DIRS, CLASSES, RELICS, TOTAL_FLOORS, FLOORS_PER_BIOME, BIOMES, BALANCE } from './data.js';
 import { rnd, rint, pick, shuffle, hashSeed } from './rng.js';
 import {
   key, tile, setTile, standable, unitAt, enemies, allies, emit, damageUnit, hurtHero, healHero, spikesUp, manhattan,
@@ -170,7 +170,7 @@ function upkeep(g) {
       emit(g, { t: 'spawn', id: u.id, x, y });
     }
   }
-  if (g.reinfLeft > 0 && g.floorTurns % 2 === 1 && enemies(g).length) {
+  if (g.reinfLeft > 0 && g.floorTurns % BALANCE.reinfEvery === 1 % BALANCE.reinfEvery && enemies(g).length) {
     const p = randomFree(g, { avoidHero: 3 });
     if (p) g.emerge = p;
   }

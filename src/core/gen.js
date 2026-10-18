@@ -1,5 +1,5 @@
 // Floor generation: open arena, overlay hazards, enemies, and the spell floor (every tile holds a deck spell).
-import { T, BIOMES, ENEMIES, ORTH, FLOORS_PER_BIOME } from './data.js';
+import { T, BIOMES, ENEMIES, ORTH, FLOORS_PER_BIOME, BALANCE } from './data.js';
 import { rnd, rint, pick } from './rng.js';
 import { key, tile, setTile, manhattan, makeUnit, freeTiles } from './engine.js';
 import { spellFreq } from './spells.js';
@@ -87,15 +87,15 @@ export function buildFloor(g) {
   const spots = () => freeTiles(g, { avoidHero: 4 }).filter(([, y]) => y < g.map.h - 3);
   if (boss) {
     const u = makeUnit(g, B.boss, g.map.w >> 1, 2);
-    if (d >= 5) { u.hp = u.maxHp = Math.ceil(u.hp * 1.25); }
+    u.hp = u.maxHp = Math.ceil(u.hp * BALANCE.bossHpMul * (d >= 5 ? 1.25 : 1));
     u.timer = 0;
   }
-  let budget = boss ? 1 + floor * 0.15 : (2.6 + floor * 0.55) * (1.6 + 0.3 * floor) * (biome === 'warrens' ? 0.8 : 1) * (biome === 'frozen' ? 1.2 : 1);
+  let budget = boss ? 1 + floor * 0.15 : (2.6 + floor * 0.55) * (BALANCE.budMul + BALANCE.budSlope * floor) * (biome === 'warrens' ? 0.8 : 1) * (biome === 'frozen' ? 1.2 : 1);
   if (d >= 1) budget += 1;
   const roster = B.roster.filter(([, min]) => min <= inBiome).map(([t]) => t);
   if (d >= 6 && !roster.includes('goblin')) { const s = spots(); if (s.length) { const p = pick(g, s); makeUnit(g, 'goblin', p[0], p[1]); } }
   let guard = 0;
-  const cap = boss ? 6 : Math.round(5 + floor * 0.6);
+  const cap = boss ? 6 : Math.round(BALANCE.capBase + floor * BALANCE.capSlope);
   while (budget > 0.6 && guard++ < 40 && g.units.length < cap) {
     const type = pick(g, roster);
     const cost = ENEMIES[type].cost;
@@ -104,7 +104,7 @@ export function buildFloor(g) {
     if (!s.length) break;
     const [x, y] = pick(g, s);
     const u = makeUnit(g, type, x, y);
-    if (d >= 2 && rnd(g) < 0.3) { u.hp++; u.maxHp++; u.elite = true; }
+    if (rnd(g) < (d >= 2 ? 0.3 : 0) + BALANCE.eliteChance) { u.hp++; u.maxHp++; u.elite = true; }
     budget -= cost;
   }
   for (const u of g.units) u.facing = [0, 1];
@@ -121,6 +121,6 @@ export function buildFloor(g) {
   g.hero.lich = 0; g.hero.harvested = false; g.echoUsed = false;
   g.turn = 0;
   // Into-the-Breach style reinforcements: a telegraphed emergence square every 2 turns
-  g.reinfLeft = boss ? 0 : 4 + Math.floor(floor / 3);
+  g.reinfLeft = boss ? 0 : BALANCE.reinfBase + Math.floor(floor * BALANCE.reinfSlope);
   g.emerge = null;
 }

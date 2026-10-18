@@ -168,5 +168,9 @@ Human-like playtests are run by agents through `tools/cli.js` (text mode) and re
 - v1 (melee, walls): planner 9.9% — Knight-only, Bone Tyrant wall.
 - v2 (spell floor, old AI): planner 80% — far too easy.
 - v3 (ITB telegraphs, single-square): planner 96% — one step dodges everything.
-- v4 (swing telegraphs, reinforcements, budget ×(1.6+0.3·floor) capped at 5+0.6·floor enemies, no inter-floor heal,
-  class fixes): see `docs/balance/`.
+- v4 (swing telegraphs, reinforcements, budget slope, no inter-floor heal, class fixes): planner 91% after capping enemies.
+- v5 (enemy ramp cap 3+1.2·floor, reinforcements 2+0.5·floor, boss HP ×1.5 and no breather after strikes, 30% elites,
+  enemies avoid fire again, Knight starts with Holy Nova, Ranger 8 HP + knockback Arrow, Hexer 5 HP + Corpse Explosion
+  capped at 3 corpses, Pyromancer 4 HP, Shadowstep/Swap deal 1+Backstab): planner ≈60% (classes 33–85%), deaths spread
+  over all floors; greedy dies floors 1–5. The planner is superhuman (5-ply, perfect info), so a strong human should sit
+  between the two bots. Tunables live in `BALANCE` (data.js).
