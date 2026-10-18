@@ -43,7 +43,7 @@ export function enemySafe(g, x, y) {
   return true;
 }
 
-export function freeTiles(g, { avoidHero = 0, safeOnly = true, noSpells = true } = {}) {
+export function freeTiles(g, { avoidHero = 0, safeOnly = true } = {}) {
   const out = [];
   for (let y = 0; y < g.map.h; y++)
     for (let x = 0; x < g.map.w; x++) {
@@ -51,15 +51,16 @@ export function freeTiles(g, { avoidHero = 0, safeOnly = true, noSpells = true }
       if (safeOnly && tile(g, x, y) !== T.FLOOR) continue;
       if (occupied(g, x, y)) continue;
       if (avoidHero && manhattan(x, y, g.hero.x, g.hero.y) < avoidHero) continue;
-      if (noSpells && spellAt(g, x, y)) continue;
       if (g.fx.trap[key(x, y)]) continue;
       out.push([x, y]);
     }
   return out;
 }
 
-export const spellAt = (g, x, y) => g.board.find((b) => b.x === x && b.y === y);
-export const ghostAt = (g, x, y) => g.recharge.find((b) => b.x === x && b.y === y);
+// Spell floor: every walkable tile has a cell {slot, cd}. cd > 0 = recharging.
+export const cellAt = (g, x, y) => (inb(g, x, y) ? g.cells[y * g.map.w + x] : null);
+export const cellReady = (g, x, y) => { const c = cellAt(g, x, y); return !!c && c.cd <= 0 && !!g.hero.deck[c.slot] && tile(g, x, y) !== T.PIT; };
+export function spoilCell(g, x, y, turns) { const c = cellAt(g, x, y); if (c) c.cd = Math.max(c.cd, turns); }
 
 // Walk from (x,y) in dir up to range tiles; stops at walls. Returns tiles (not including origin).
 export function ray(g, x, y, dx, dy, range = 99, stopAtUnit = false) {
@@ -119,6 +120,7 @@ export function damageUnit(g, u, amount, src = null, kind = 'spell') {
     }
   }
   let n = amount + (u.mark > 0 ? 1 : 0);
+  if (g.cls === 'shadow' && kind === 'spell' && (u.stun > 0 || u.root > 0)) n += 2;
   if (u.curse > 0) n *= 2;
   u.hp -= n;
   emit(g, { t: 'hit', id: u.id, x: u.x, y: u.y, n });
@@ -139,6 +141,7 @@ export function killUnit(g, u, kind) {
   const k = key(u.x, u.y);
   if (standable(g, u.x, u.y)) g.fx.corpse[k] = 1;
   if (g.cls === 'pyro' && (kind === 'spell' || kind === 'burn')) g.fx.burn[k] = 3;
+  if (g.hero.lich > 0 && kind === 'spell') healHero(g, 1);
   if (g.hero.relics.includes('vampire_fang')) {
     g.hero.fang = (g.hero.fang || 0) + 1;
     if (g.hero.fang % 4 === 0) healHero(g, 1);

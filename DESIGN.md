@@ -5,61 +5,63 @@
 
 ## 1. Pillars
 
-1. **Every step is a decision.** Enemies show their threat squares (like chess pieces). Spell tiles show where your power is. Routing between them is the game.
-2. **Approach angle matters.** A spell fires in the direction you entered its tile. The same Firebolt is useless or lethal depending on whether you walked in from the left or from below.
-3. **Short, deep, fair.** Floors take 1–3 minutes. All enemy behaviour is deterministic and telegraphed. Deaths should feel like *your* mistake.
-4. **Builds, not grinding.** Meta-unlocks widen your options (more spells, classes, relics, challenge tiers), not raw power. Small power perks are capped.
+1. **Every step is a spell.** The whole floor is tiled with your deck. There is no melee and no empty ground:
+   every move casts the spell under your feet, in the direction you moved. Routing *is* fighting.
+2. **Approach angle matters.** The same Firebolt is useless or lethal depending on whether you walked in from the left or from below.
+3. **Short, deep, fair.** Floors take 1–3 minutes. All enemy behaviour is deterministic and telegraphed (chess-like threat squares).
+4. **Builds, not grinding.** Meta-unlocks widen your options (spells, heroes, relics, challenge tiers), not raw power.
 
 ## 2. Core loop
 
 ```
-Run start → pick class → Floor 1..12 (4 biomes x 3 floors, 3rd floor = boss)
-  each floor: clear all enemies → draft 1 of 3 new spells (replace a deck slot or skip) → small heal
+Run start → pick hero → Floor 1..12 (4 biomes x 3 floors, 3rd floor = boss)
+  each floor: clear all enemies → draft 1 of 3 spells (add / replace a deck slot / empower) → small heal
   each boss: relic choice (1 of 3) + heal
 Death or victory → Embers awarded → Sanctum (meta-unlocks) → new run
 ```
 
-## 3. Turn structure
+## 3. Turn structure & the spell floor
 
-1. **Hero phase** – move 1 tile up/down/left/right, or **wait** (Space).
-   - Moving into an enemy = **bump attack** (hero stays in place; damage = class bump damage).
-   - Moving onto a spell tile = **cast** that spell, direction = movement direction.
-   - Tiles: floor, wall, pit (hero can't enter; enemies pushed in die), spikes (toggle each turn, 1 dmg when up),
-     ice (you slide until something stops you — sliding over spell tiles casts them!), lava (2 dmg),
-     slime (entering it roots you for 1 turn), bones/corpse (decoration; Hexer uses them).
-2. **Enemy phase** – each enemy, in order: **if the hero is inside its attack pattern → attack. Otherwise move.**
-   Never both (except bosses with explicit 2-step patterns). This makes danger 100% readable:
-   the board shades every square that is currently threatened, with a number when multiply threatened.
-3. **Upkeep** – spell cooldowns tick, burning/poison tick, spikes toggle, doom clock ticks.
+- **Open arenas**: floors are open rectangles (7x7 to 8x9) with no interior walls or pits. Every tile carries a spell.
+- **Floor layout**: at floor start every tile is assigned one of your deck's spells, weighted by the spell's
+  *frequency* (basic spells are common, big spells rare; every deck spell appears at least twice). Each deck slot has
+  its own colour so you can read the floor at a glance.
+- **Hero phase** – move 1 tile up/down/left/right, or **wait** (casts nothing).
+  - Moving onto a *ready* tile **casts** its spell in the movement direction; that tile then **recharges in place**
+    for the spell's cooldown (a faded icon with a countdown). Spent tiles can be walked over freely — they are your "quiet" moves.
+  - You cannot move into enemies (there is no bump attack). All damage comes from spells.
+  - If a spell moves you (Charge, Vault, Swap…) and you land on a ready tile, that tile casts too (max chain 3).
+- **Enemy phase** – each enemy: **if the hero is inside its attack pattern → attack, otherwise move.** Threatened
+  squares are shaded red, so danger is 100% readable.
+- **Upkeep** – tiles recharge, burning/poison tick, spikes toggle, doom clock ticks.
 
-### Spell tiles (the deck on the board)
+### Floor overlays (biome flavour, never obstacles)
+Spikes (crypt/warrens: alternate each turn, 1 dmg), slime (swamp: roots you 1 turn), ice (frozen: you slide, casting
+*every* ready tile you slide across), burning ground, temporary walls/pits created by spells, traps, corpses.
 
-- Deck = 4 spells at start, max 5 slots (relics can add a 6th).
-- Floor start: each spell is placed on a random free tile (not adjacent to hero, not under enemies).
-- When cast, the spell leaves the board and **recharges** for its cooldown (2–8 turns). Its return tile is chosen
-  immediately and shown as a ghost tile with a countdown, so you can plan your route to it.
-- Enemies walking over spell tiles don't trigger them. **Goblins eat them** (sending them back to recharge +3).
+Goblins **spoil** every tile they walk over (it goes on a 4-turn recharge).
 
 ### Doom clock
 
-Each floor has a **par** (`14 + 2 x enemies` turns). Clear before par → **Swift** bonus (+1 Ember, +1 draft option).
-After par, **the Dark rises**: every 4 turns a shade spawns on a telegraphed tile. Stalling is never optimal.
+Each floor has a **par** (`12 + 2 x enemies` turns). Clear before par → **Swift** (+1 Ember, +1 draft option).
+Take no damage → **Flawless** (+1 Ember). After par, **the Dark rises**: every 4 turns a shade spawns on a telegraphed tile.
 
 ## 4. Hero classes (each has a completely different spell list)
 
-| Class | Sprite | HP | Bump | Passive | Unlock |
-|---|---|---|---|---|---|
-| **Knight** | knight_m | 8 | 2 | *Steel*: first hit each floor is blocked | Start |
-| **Pyromancer** | wizzard_m | 5 | 1 | *Kindling*: enemies killed by spells leave a burning tile | Reach floor 4 |
-| **Ranger** | elf_f | 6 | 1 | *Steady Aim*: after waiting, your next spell deals +1 | Kill 60 enemies (total) |
-| **Geomancer** | dwarf_m | 7 | 1 | *Stoneblood*: pushing an enemy into a wall/enemy deals +1 collision dmg | Defeat the Crypt boss |
-| **Shadowblade** | lizard_m | 5 | 1 | *Backstab*: bumps vs stunned/rooted enemies deal 3 | Clear a floor without taking damage |
-| **Hexer** | wizzard_f | 6 | 1 | *Harvest*: kills leave corpses; walking onto a corpse heals 1 (max once per floor) | Defeat the Orc Warlord |
+| Class | Sprite | HP | Passive | Unlock |
+|---|---|---|---|---|
+| **Knight** | knight_m | 7 | *Steel*: first hit each floor is blocked | Start |
+| **Pyromancer** | wizzard_m | 5 | *Kindling*: spell kills set the ground ablaze; immune to fire | Reach floor 4 |
+| **Ranger** | elf_f | 6 | *Steady Aim*: after waiting, your next spell deals +1 | Kill 60 enemies (total) |
+| **Geomancer** | dwarf_m | 6 | *Stoneblood*: knocking an enemy into a wall/enemy deals +1 | Defeat the Crypt boss |
+| **Shadowblade** | lizard_m | 5 | *Backstab*: spells deal +2 to stunned or rooted enemies | Clear a floor without taking damage |
+| **Hexer** | wizzard_f | 6 | *Harvest*: kills leave corpses; stepping on one heals 1 (once per floor) | Defeat the Orc Warlord |
 
-Each class has 12 spells: 4 starters, 4 base draftable, 4 locked behind **Grimoire** meta-unlocks.
+Each class has 12 spells: 4 starters (including one common *basic* spell), 4 base draftable, 4 locked behind **Grimoire** meta-unlocks.
+Every spell has a cooldown and a floor frequency (1 = rare, 3 = common).
 Spell list with exact numbers lives in `src/core/spells.js` (the single source of truth); summary:
 
-- **Knight** – Cleave, Charge, Shield Bash, Bulwark | Whirlwind, Lance, Rally, Taunt | Riposte, Earthshaker, Execute, Valor
+- **Knight** – Slash, Cleave, Shield Bash, Bulwark | Charge, Whirlwind, Lance, Rally | Taunt, Riposte, Earthshaker, Execute
 - **Pyromancer** – Firebolt, Flame Wave, Fire Ring, Heat Shield | Meteor, Inferno Line, Blink Flare, Combustion | Cinder Storm, Magma Wall, Phoenix Feather, Pyroclasm
 - **Ranger** – Arrow, Vault, Bear Trap, Piercing Shot | Volley, Hawk, Snare Net, Windstep | Ricochet, Rain of Arrows, Smoke Bomb, Mark Prey
 - **Geomancer** – Boulder, Stone Fist, Raise Wall, Stone Skin | Quake, Tremor, Earth Spike, Sinkhole | Landslide, Geode, Fissure, Tectonic Shift
@@ -81,7 +83,7 @@ Attack patterns are shown as threat squares. Movement uses pathfinding with the 
 | Mudling (muddy) | Swamp | 3 | orth neighbours | 1 orth | splits into 2 Slimelings (1hp) on death |
 | Frost Zombie (ice_zombie) | Frozen | 3 | orth neighbours | 1 orth | freezes the tile it leaves (ice) |
 | Wraith (angel, tinted) | Frozen | 2 | Knight-move (L shapes) | jumps like a chess knight | ignores walls |
-| Goblin | Warrens | 1 | orth neighbours | 2 orth | eats spell tiles |
+| Goblin | Warrens | 1 | orth neighbours | 2 orth | spoils the tiles it walks on |
 | Orc Warrior | Warrens | 3 | orth line up to 3 (charge, stops adjacent) | 1 orth | charging = moves to you then hits |
 | Masked Orc | Warrens | 3 | orth neighbours | 1 orth | shield: immune to damage from the side it faces |
 | Orc Shaman | Warrens | 2 | none | keeps distance | heals the most wounded ally 1 each turn |
@@ -100,11 +102,11 @@ Bosses (32x36 sprites, occupy 1 tile but have patterns):
 
 | # | Biome | Floors | Hazards | Palette |
 |---|---|---|---|---|
-| 1 | Forgotten Crypt | 1–3 | spikes, pits | grey stone |
-| 2a | Rot Swamp | 4–6 | slime, pits | green |
-| 2b | Frozen Vault (alt. path) | 4–6 | ice (sliding) | blue |
-| 3 | Orc Warrens | 7–9 | spikes, crates (walls) | brown |
-| 4 | Infernal Pit | 10–12 | lava | red |
+| 1 | Forgotten Crypt | 1–3 | spikes | grey stone |
+| 2a | Rot Swamp | 4–6 | slime puddles, slug trails | green |
+| 2b | Frozen Vault (alt. path) | 4–6 | ice patches (sliding chain-casts) | blue |
+| 3 | Orc Warrens | 7–9 | spikes, spell-spoiling goblins | brown |
+| 4 | Infernal Pit | 10–12 | burning ground (fire lines, wogol blasts) | red |
 
 After the Crypt boss the player **chooses** Swamp or Frozen Vault (Frozen unlocks after first Crypt boss kill).
 

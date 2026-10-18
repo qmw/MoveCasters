@@ -16,37 +16,37 @@ export const KNIGHT = [[1, -2], [2, -1], [2, 1], [1, 2], [-1, 2], [-2, 1], [-2, 
 
 export const CLASSES = {
   knight: {
-    name: 'Knight', sprite: 'knight_m', hp: 8, bump: 2, color: '#c9d4e8',
+    name: 'Knight', sprite: 'knight_m', hp: 7, color: '#c9d4e8',
     passive: 'Steel — the first hit you take each floor is blocked.',
     unlock: null,
-    starters: ['cleave', 'charge', 'shield_bash', 'bulwark'],
+    starters: ['slash', 'cleave', 'shield_bash', 'bulwark'],
   },
   pyro: {
-    name: 'Pyromancer', sprite: 'wizzard_m', hp: 5, bump: 1, color: '#ff8a3d',
+    name: 'Pyromancer', sprite: 'wizzard_m', hp: 5, color: '#ff8a3d',
     passive: 'Kindling — spell kills set the ground ablaze. You are immune to fire.',
     unlock: { kind: 'reachFloor', n: 4, text: 'Reach floor 4' },
     starters: ['firebolt', 'flame_wave', 'fire_ring', 'heat_shield'],
   },
   ranger: {
-    name: 'Ranger', sprite: 'elf_f', hp: 6, bump: 1, color: '#8fd16a',
+    name: 'Ranger', sprite: 'elf_f', hp: 6, color: '#8fd16a',
     passive: 'Steady Aim — after waiting, your next spell deals +1.',
     unlock: { kind: 'kills', n: 60, text: 'Slay 60 enemies (all runs)' },
     starters: ['arrow', 'vault', 'bear_trap', 'piercing_shot'],
   },
   geo: {
-    name: 'Geomancer', sprite: 'dwarf_m', hp: 7, bump: 1, color: '#c8a26b',
+    name: 'Geomancer', sprite: 'dwarf_m', hp: 6, color: '#c8a26b',
     passive: 'Stoneblood — enemies you knock into walls or foes take +1.',
     unlock: { kind: 'boss', id: 'bone_tyrant', text: 'Defeat the Bone Tyrant' },
     starters: ['boulder', 'stone_fist', 'raise_wall', 'stone_skin'],
   },
   shadow: {
-    name: 'Shadowblade', sprite: 'lizard_m', hp: 5, bump: 1, color: '#b18cff',
-    passive: 'Backstab — bumping a stunned or rooted enemy deals 3.',
+    name: 'Shadowblade', sprite: 'lizard_m', hp: 5, color: '#b18cff',
+    passive: 'Backstab — your spells deal +2 to stunned or rooted enemies.',
     unlock: { kind: 'perfectFloor', text: 'Clear a floor without taking damage' },
     starters: ['shuriken', 'shadowstep', 'swap', 'smoke'],
   },
   hexer: {
-    name: 'Hexer', sprite: 'wizzard_f', hp: 6, bump: 1, color: '#7de0c8',
+    name: 'Hexer', sprite: 'wizzard_f', hp: 6, color: '#7de0c8',
     passive: 'Harvest — foes leave corpses. Step on a corpse to heal 1 (once per floor).',
     unlock: { kind: 'boss', id: 'orc_warlord', text: 'Defeat the Orc Warlord' },
     starters: ['bone_spear', 'life_drain', 'raise_dead', 'curse'],
@@ -77,7 +77,7 @@ export const ENEMIES = {
   wraith: { name: 'Wraith', sprite: 'angel_idle', hp: 2, dmg: 1, pattern: 'knight', move: 'knight', cost: 1.9, tint: '#9fd8ff',
     desc: 'Leaps and strikes in L-shapes, like a chess knight.' },
   goblin: { name: 'Goblin', sprite: 'goblin_idle', hp: 1, dmg: 1, pattern: 'orth1', move: 'orth', speed: 2, eater: true, cost: 1.1,
-    desc: 'Fast (2 steps). Eats your spell tiles!' },
+    desc: 'Fast (2 steps). Spoils every spell tile it walks over.' },
   orc: { name: 'Orc Warrior', sprite: 'orc_warrior_idle', hp: 3, dmg: 2, pattern: 'charge', range: 3, move: 'orth', cost: 2.1,
     desc: 'Charges along a clear line (range 3) and hits for 2.' },
   masked: { name: 'Masked Orc', sprite: 'masked_orc_idle', hp: 3, dmg: 1, pattern: 'orth1', move: 'orth', shield: true, cost: 2.2,
@@ -111,15 +111,15 @@ export const ALLIES = {
 
 export const BIOMES = {
   crypt: { name: 'Forgotten Crypt', boss: 'bone_tyrant', tint: null, floorTint: '#000000',
-    roster: [['skeleton', 1], ['zombie', 1], ['imp', 1], ['caster', 2]], hazards: { spikes: 0.05, pit: 0.03 } },
+    roster: [['skeleton', 1], ['zombie', 1], ['imp', 1], ['caster', 2]], hazards: { spikes: 0.06 } },
   swamp: { name: 'Rot Swamp', boss: 'mother_slug', floorTint: '#2f6b2a',
-    roster: [['slug', 1], ['spitter', 1], ['mudling', 2], ['imp', 1]], hazards: { pit: 0.06 }, slimeStart: 5 },
+    roster: [['slug', 1], ['spitter', 1], ['mudling', 2], ['imp', 1]], hazards: {}, slimeStart: 6 },
   frozen: { name: 'Frozen Vault', boss: 'frost_colossus', floorTint: '#3d6fa8',
-    roster: [['frost', 1], ['wraith', 1], ['skeleton', 1], ['caster', 2]], hazards: { ice: 0.16, pit: 0.02 } },
+    roster: [['frost', 1], ['wraith', 1], ['skeleton', 1], ['caster', 2]], hazards: { ice: 0.14 } },
   warrens: { name: 'Orc Warrens', boss: 'orc_warlord', floorTint: '#7a5228',
     roster: [['goblin', 1], ['orc', 1], ['masked', 2], ['shaman', 2]], hazards: { spikes: 0.08 } },
   inferno: { name: 'Infernal Pit', boss: 'pit_lord', floorTint: '#8a1f12',
-    roster: [['chort', 1], ['wogol', 1], ['imp', 1], ['wraith', 2], ['orc', 2]], hazards: { lava: 0.07 } },
+    roster: [['chort', 1], ['wogol', 1], ['imp', 1], ['wraith', 2], ['orc', 2]], hazards: { burn: 4 } },
 };
 
 export const RELICS = {
@@ -133,7 +133,7 @@ export const RELICS = {
   swift_boots: { name: 'Swift Boots', desc: 'Swift bonus threshold +6 turns; the Dark arrives later.', base: false, icon: 'flask_green' },
   lucky_coin: { name: 'Lucky Coin', desc: '+1 option in every spell draft.', base: false, icon: 'coin_anim' },
   ember_heart: { name: 'Ember Heart', desc: '+1 Ember per floor cleared.', base: false, icon: 'flask_big_green' },
-  spiked_boots: { name: 'Spiked Boots', desc: 'Spikes and burning ground no longer hurt you.', base: false, icon: 'floor_spikes_anim' },
+  spiked_boots: { name: 'Spiked Boots', desc: 'Spikes and burning ground no longer hurt you; spikes hurt enemies +1.', base: false, icon: 'floor_spikes_anim' },
   phylactery: { name: 'Phylactery', desc: 'Once per run, survive a lethal blow at 1 HP.', base: false, icon: 'skull' },
 };
 

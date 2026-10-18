@@ -4,7 +4,7 @@
 import { KING, ORTH, T } from './data.js';
 import {
   key, inb, tile, setTile, isWall, unitAt, heroAt, occupied, enemies, ray, firstEnemyInRay, enemiesInRay,
-  nearestEnemy, damageUnit, killUnit, pushUnit, healHero, hurtHero, emit, makeUnit, standable, manhattan, cheb, spellAt,
+  nearestEnemy, damageUnit, killUnit, pushUnit, healHero, hurtHero, emit, makeUnit, standable, manhattan, cheb, cellAt, cellReady,
 } from './engine.js';
 
 const hit = (g, u, n) => u && damageUnit(g, u, n, g.hero, 'spell');
@@ -34,13 +34,20 @@ function pierce(g, c, range, dmg, color) {
   return { tiles, us };
 }
 function placeTempWall(g, x, y, turns) {
-  if (!inb(g, x, y) || !standable(g, x, y) || occupied(g, x, y) || spellAt(g, x, y)) return false;
+  if (!inb(g, x, y) || !standable(g, x, y) || occupied(g, x, y)) return false;
   g.fx.wall[key(x, y)] = turns;
   return true;
 }
 
 export const SPELLS = {
   // ======================= KNIGHT =======================
+  slash: { cls: 'knight', tier: 's', name: 'Slash', cd: 1, freq: 3, icon: 'weapon_regular_sword',
+    desc: 'The square in front of you takes 2.',
+    cast(g, c) {
+      const h = H(g), x = h.x + c.dx, y = h.y + c.dy;
+      aoe(g, [[x, y]], '#e8e8e8');
+      hit(g, enemyAt(g, x, y), 2 + c.P);
+    } },
   cleave: { cls: 'knight', tier: 's', name: 'Cleave', cd: 3, icon: 'weapon_axe',
     desc: 'Hit the 3 squares in front of you for 2.',
     cast(g, c) {
@@ -49,7 +56,7 @@ export const SPELLS = {
       aoe(g, tiles, '#e8e8e8');
       tiles.forEach(([x, y]) => hit(g, enemyAt(g, x, y), 2 + c.P));
     } },
-  charge: { cls: 'knight', tier: 's', name: 'Charge', cd: 4, icon: 'weapon_spear',
+  charge: { cls: 'knight', tier: 'b', name: 'Charge', cd: 4, icon: 'weapon_spear',
     desc: 'Dash forward up to 4 squares. If you slam into an enemy: 2 damage and stun it.',
     cast(g, c) {
       const h = H(g);
@@ -90,7 +97,7 @@ export const SPELLS = {
   rally: { cls: 'knight', tier: 'b', name: 'Rally', cd: 8, icon: 'flask_big_red',
     desc: 'Heal 2.',
     cast(g, c) { healHero(g, 2 + c.lv); } },
-  taunt: { cls: 'knight', tier: 'b', name: 'Taunt', cd: 5, icon: 'wall_banner_red',
+  taunt: { cls: 'knight', tier: 'l', name: 'Taunt', cd: 5, icon: 'wall_banner_red',
     desc: 'Enemies within 3 are dragged 1 toward you. Gain 1 Block per enemy dragged (max 3).',
     cast(g, c) {
       const h = H(g);
@@ -128,14 +135,11 @@ export const SPELLS = {
       if (!u.boss && u.hp <= 4 + c.lv) { emit(g, { t: 'hit', id: u.id, x: u.x, y: u.y, n: u.hp }); killUnit(g, u, 'spell'); }
       else hit(g, u, 4 + c.P);
     } },
-  valor: { cls: 'knight', tier: 'l', name: 'Valor', cd: 6, icon: 'weapon_golden_sword',
-    desc: 'For 4 turns your bump attacks deal +2.',
-    cast(g, c) { H(g).valor = 4 + c.lv; emit(g, { t: 'text', x: H(g).x, y: H(g).y, s: 'VALOR', c: '#ffd700' }); } },
 
   // ======================= PYROMANCER =======================
-  firebolt: { cls: 'pyro', tier: 's', name: 'Firebolt', cd: 2, icon: 'weapon_red_magic_staff',
-    desc: 'The first enemy in a line takes 2.',
-    cast(g, c) { shootFirst(g, c, 99, 2 + c.P, '#ff8a3d'); } },
+  firebolt: { cls: 'pyro', tier: 's', name: 'Firebolt', cd: 1, freq: 3, icon: 'weapon_red_magic_staff',
+    desc: 'The first enemy in a line takes 1.',
+    cast(g, c) { shootFirst(g, c, 99, 1 + c.P, '#ff8a3d'); } },
   flame_wave: { cls: 'pyro', tier: 's', name: 'Flame Wave', cd: 4, icon: 'wall_fountain_basin_red_anim',
     desc: 'A 3-wide, 2-deep wave ahead: 1 damage and sets the ground ablaze.',
     cast(g, c) {
@@ -233,9 +237,9 @@ export const SPELLS = {
     } },
 
   // ======================= RANGER =======================
-  arrow: { cls: 'ranger', tier: 's', name: 'Arrow', cd: 2, icon: 'weapon_arrow',
-    desc: 'The first enemy in a line takes 2.',
-    cast(g, c) { shootFirst(g, c, 99, 2 + c.P, '#d9f0a3'); } },
+  arrow: { cls: 'ranger', tier: 's', name: 'Arrow', cd: 1, freq: 3, icon: 'weapon_arrow',
+    desc: 'The first enemy in a line takes 1.',
+    cast(g, c) { shootFirst(g, c, 99, 1 + c.P, '#d9f0a3'); } },
   vault: { cls: 'ranger', tier: 's', name: 'Vault', cd: 3, icon: 'weapon_bow',
     desc: 'Leap 2 squares backward, then loose an arrow forward for 1.',
     cast(g, c) {
@@ -337,7 +341,7 @@ export const SPELLS = {
       hit(g, u, 1 + c.P);
       if (u.hp > 0) pushUnit(g, u, c.dx, c.dy, 9);
     } },
-  stone_fist: { cls: 'geo', tier: 's', name: 'Stone Fist', cd: 2, icon: 'weapon_hammer',
+  stone_fist: { cls: 'geo', tier: 's', name: 'Stone Fist', cd: 1, freq: 3, icon: 'weapon_hammer',
     desc: 'Enemy in front takes 1 and is knocked back 2.',
     cast(g, c) {
       const h = H(g), u = enemyAt(g, h.x + c.dx, h.y + c.dy);
@@ -374,12 +378,13 @@ export const SPELLS = {
     desc: 'The nearest enemy within 4 takes 2.',
     cast(g, c) { const h = H(g), u = nearestEnemy(g, h.x, h.y, 4); if (!u) return; aoe(g, [[u.x, u.y]], '#c8a26b'); hit(g, u, 2 + c.P); } },
   sinkhole: { cls: 'geo', tier: 'b', name: 'Sinkhole', cd: 6, icon: 'hole',
-    desc: 'The square 2 ahead collapses into a pit. An enemy there falls (bosses take 3).',
+    desc: 'The square 2 ahead collapses into a pit for 6 turns. An enemy there falls (bosses take 3).',
     cast(g, c) {
       const h = H(g), x = h.x + c.dx * 2, y = h.y + c.dy * 2;
-      if (!inb(g, x, y) || tile(g, x, y) === T.WALL || spellAt(g, x, y)) return;
+      if (!inb(g, x, y) || tile(g, x, y) !== T.FLOOR && tile(g, x, y) !== T.ICE || heroAt(g, x, y)) return;
       const u = enemyAt(g, x, y);
       if (u && u.boss) { hit(g, u, 3 + c.P); return; }
+      g.fx.pit[key(x, y)] = { t: 6, was: tile(g, x, y) };
       setTile(g, x, y, T.PIT); delete g.fx.wall[key(x, y)];
       aoe(g, [[x, y]], '#5a3a1a');
       if (u) { emit(g, { t: 'fall', x, y }); damageUnit(g, u, 999, null, 'collide'); }
@@ -409,7 +414,7 @@ export const SPELLS = {
     } },
 
   // ======================= SHADOWBLADE =======================
-  shuriken: { cls: 'shadow', tier: 's', name: 'Shuriken', cd: 2, icon: 'weapon_throwing_axe',
+  shuriken: { cls: 'shadow', tier: 's', name: 'Shuriken', cd: 1, freq: 3, icon: 'weapon_throwing_axe',
     desc: 'First enemy in a line takes 1, then it bounces to the nearest other enemy for 1.',
     cast(g, c) {
       const u = shootFirst(g, c, 99, 1 + c.P, '#b18cff');
@@ -480,21 +485,26 @@ export const SPELLS = {
       if (u) { hit(g, u, 1 + c.P); if (u.hp > 0) u.stun = Math.max(u.stun, 2); }
     } },
   mirror_step: { cls: 'shadow', tier: 'l', name: 'Mirror Step', cd: 4, icon: 'flask_big_blue',
-    desc: 'Teleport onto the farthest spell on the board and cast it (same direction).',
+    desc: 'Teleport onto the farthest ready spell tile (a different spell) and cast it in the same direction.',
     cast(g, c) {
-      const h = H(g);
-      const far = g.board.slice().sort((a, b) => manhattan(b.x, b.y, h.x, h.y) - manhattan(a.x, a.y, h.x, h.y))
-        .find((b) => !unitAt(g, b.x, b.y));
-      if (far) c.moveHero(far.x, far.y, c.dx, c.dy, true);
+      const h = H(g), mine = cellAt(g, h.x, h.y);
+      let best = null, bd = -1;
+      for (let y = 0; y < g.map.h; y++) for (let x = 0; x < g.map.w; x++) {
+        const cl = cellAt(g, x, y);
+        if (!cellReady(g, x, y) || occupied(g, x, y) || (mine && cl.slot === mine.slot)) continue;
+        const d = manhattan(x, y, h.x, h.y);
+        if (d > bd) { bd = d; best = [x, y]; }
+      }
+      if (best) c.moveHero(best[0], best[1], c.dx, c.dy, true);
     } },
   death_mark: { cls: 'shadow', tier: 'l', name: 'Death Mark', cd: 6, icon: 'skull',
     desc: 'Every enemy in a line is Marked (+1 damage taken) and poisoned 2.',
     cast(g, c) { const { us } = pierce(g, c, 99, 0, '#b18cff'); us.forEach((u) => { u.mark = 1; u.poison += 2 + c.P; }); } },
 
   // ======================= HEXER =======================
-  bone_spear: { cls: 'hexer', tier: 's', name: 'Bone Spear', cd: 3, icon: 'weapon_spear',
-    desc: 'Every enemy in a line (range 4) takes 1; the first takes 1 more.',
-    cast(g, c) { const { us } = pierce(g, c, 4, 1 + c.P, '#e8e0c8'); if (us[0] && us[0].hp > 0) hit(g, us[0], 1); } },
+  bone_spear: { cls: 'hexer', tier: 's', name: 'Bone Spear', cd: 1, freq: 3, icon: 'weapon_spear',
+    desc: 'Every enemy in a line (range 3) takes 1.',
+    cast(g, c) { pierce(g, c, 3, 1 + c.P, '#e8e0c8'); } },
   life_drain: { cls: 'hexer', tier: 's', name: 'Life Drain', cd: 4, icon: 'flask_red',
     desc: 'The nearest enemy within 3 takes 1. You heal 1.',
     cast(g, c) {
@@ -562,16 +572,19 @@ export const SPELLS = {
       aoe(g, us.map((u) => [u.x, u.y]), '#7de0c8');
       us.forEach((u) => { u.root = Math.max(u.root, 3); u.stun = Math.max(u.stun, 1 + c.lv); });
     } },
-  dark_pact: { cls: 'hexer', tier: 'l', name: 'Dark Pact', cd: 6, icon: 'flask_big_red',
-    desc: 'Lose 1 HP. All your other spells finish recharging instantly.',
-    cast(g, c) { hurtHero(g, 1, null, 'self'); g.recharge.forEach((r) => (r.t = 0)); g.pactNow = true; } },
+  dark_pact: { cls: 'hexer', tier: 'l', name: 'Dark Pact', cd: 8, freq: 1, icon: 'flask_big_red',
+    desc: 'Lose 1 HP. Every other spell tile on the floor finishes recharging instantly.',
+    cast(g, c) { hurtHero(g, 1, null, 'self'); g.cells.forEach((cl) => { if (cl && SPELLS[g.hero.deck[cl.slot]?.id] !== SPELLS.dark_pact) cl.cd = 0; }); } },
   plague: { cls: 'hexer', tier: 'l', name: 'Plague', cd: 6, icon: 'flask_green',
     desc: 'Every enemy is poisoned 2.',
     cast(g, c) { const us = enemies(g); aoe(g, us.map((u) => [u.x, u.y]), '#7dff6b'); us.forEach((u) => (u.poison += 2 + c.P)); } },
   lich_form: { cls: 'hexer', tier: 'l', name: 'Lich Form', cd: 9, icon: 'necromancer_anim',
-    desc: 'For 4 turns your bump attacks deal 3 and heal you 1.',
+    desc: 'For 4 turns your spells deal +1, and every spell kill heals you 1.',
     cast(g, c) { H(g).lich = 4 + c.lv; emit(g, { t: 'text', x: H(g).x, y: H(g).y, s: 'LICH FORM', c: '#7de0c8' }); } },
 };
+
+// How common a spell is on the floor (tile weight). Basics are explicit (3); otherwise by cooldown.
+export const spellFreq = (id) => SPELLS[id].freq || (SPELLS[id].cd <= 4 ? 2 : 1);
 
 export const spellsOf = (cls) => Object.keys(SPELLS).filter((id) => SPELLS[id].cls === cls);
 export const spellCd = (g, id, lv) => Math.max(1, SPELLS[id].cd - (lv ? 1 : 0) - (g.hero.relics.includes('hourglass') ? 1 : 0));

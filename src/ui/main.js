@@ -1,11 +1,11 @@
 // UI controller: screens, input, modals, persistence.
 import { CLASSES, CLASS_ORDER, ENEMIES, ALLIES, RELICS, BLESSINGS, BIOMES, DEPTH_MODS, T, TOTAL_FLOORS } from '../core/data.js';
-import { SPELLS, spellsOf, spellCd } from '../core/spells.js';
+import { SPELLS, spellsOf, spellCd, spellFreq } from '../core/spells.js';
 import { newRun, act, chooseDraft, rerollDraft, chooseRelic, choosePath, healBetween } from '../core/game.js';
 import { newMeta, applyRun, buy, grimoireFor, nextGoals, GRIMOIRE_COSTS, RELIC_COST } from '../core/meta.js';
 import { key, tile, spikesUp } from '../core/engine.js';
 import { threatOf, dangerMap } from '../core/ai.js';
-import { Renderer } from './render.js';
+import { Renderer, SLOT_COLORS } from './render.js';
 import { preloadAll, sprite, spellIcon, iconCanvas, genImage } from './sprites.js';
 import { sfx, isMuted, setMuted } from './audio.js';
 
@@ -129,7 +129,7 @@ function renderClassSelect() {
     const card = el('div', 'ccard' + (c === selCls ? ' on' : '') + (locked ? ' locked' : ''));
     card.append(iconCanvas(sprite(C.sprite + '_idle'), 64));
     card.append(el('div', 'nm', C.name));
-    card.append(el('div', 'lk', locked ? '🔒 ' + C.unlock.text : `HP ${C.hp} · bump ${C.bump}`));
+    card.append(el('div', 'lk', locked ? '🔒 ' + C.unlock.text : `HP ${C.hp}`));
     if (!locked) card.onclick = () => { selCls = c; selDepth = Math.min(selDepth, meta.depthUnlocked[c] || 0); sfx('pick'); renderClassSelect(); };
     list.append(card);
   }
@@ -255,13 +255,12 @@ function checkHints() {
   if (!g || g.phase !== 'play') return;
   const h = g.hero;
   const adj = (x, y) => Math.abs(x - h.x) + Math.abs(y - h.y) === 1;
-  if (g.stats.spellsCast === 0 && g.board.some((b) => adj(b.x, b.y)))
-    return hint('spell_adj', 'A spell is next to you! The <b>arrow</b> shows which way it will fire if you step onto it <b>from here</b>.');
-  if (g.stats.spellsCast >= 1 && hint('recharge', 'Cast spells <b>recharge</b>. The faded ghost shows where each one will reappear, and in how many turns.')) return;
+  if (g.stats.spellsCast === 0)
+    return hint('spell_adj', 'Every tile is a spell from your deck. <b>Each step casts the tile you step onto</b>, in the direction of the arrow. No melee — position is everything.');
+  if (g.stats.spellsCast >= 1 && hint('recharge', 'A used tile <b>recharges in place</b> (faded, with a countdown). Walking over spent tiles casts nothing — use them to reposition.')) return;
   const dm = dangerMap(g);
   if (Object.keys(dm).some((k) => { const [x, y] = k.split(',').map(Number); return adj(x, y); }))
     return hint('danger', '<b>Red squares</b> will be struck on the enemy turn. End your move outside them — or kill the attacker first.');
-  if (g.units.some((u) => u.team === 'enemy' && adj(u.x, u.y))) return hint('bump', 'Walk into an enemy to <b>bump-attack</b> it. Spells are usually safer.');
   if (g.floorTurns >= g.par - 3 && g.floorTurns < g.par) return hint('par', 'The <b>Dark</b> rises at turn ' + g.par + ': shades will start spawning. Finish the floor fast!');
   if (g.units.some((u) => u.intent)) return hint('intent', '<b>Orange squares</b>: a telegraphed boss attack. The number is how many turns until it lands.');
   if (g.floor >= 2) hint('inspect', 'Tip: hover or tap any enemy to see exactly which squares it threatens.');
@@ -305,13 +304,14 @@ function renderDeck() {
   d.innerHTML = '';
   g.hero.deck.forEach((s, i) => {
     const S = SPELLS[s.id];
-    const onBoard = g.board.find((b) => b.slot === i);
-    const rc = g.recharge.find((b) => b.slot === i);
-    const c = el('div', 'dcard' + (rc ? ' charging' : '') + (s.lv ? ' lv1' : ''));
+    const mine = g.cells.filter((cl) => cl && cl.slot === i);
+    const ready = mine.filter((cl) => cl.cd <= 0).length;
+    const c = el('div', 'dcard' + (ready ? '' : ' charging') + (s.lv ? ' lv1' : ''));
+    c.style.borderColor = SLOT_COLORS[i % SLOT_COLORS.length];
     c.append(iconCanvas(spellIcon(s.id, S.icon), 32));
     c.append(el('div', 'nm', S.name + (s.lv ? '+' : '')));
-    c.append(el('div', 'st' + (rc ? ' cd' : ''), onBoard ? 'READY' : rc ? `⟳ ${rc.t}` : '—'));
-    c.onclick = () => { showInfo(spellInfo(s.id, s.lv)); if (onBoard) R.hover = [onBoard.x, onBoard.y]; };
+    c.append(el('div', 'st' + (ready ? '' : ' cd'), `${ready}/${mine.length} ready`));
+    c.onclick = () => showInfo(spellInfo(s.id, s.lv));
     d.append(c);
   });
   for (let i = g.hero.deck.length; i < g.hero.slots; i++) d.append(el('div', 'dcard', '<div class="nm k">empty</div><div class="st cd">slot</div>'));
@@ -320,7 +320,7 @@ function renderDeck() {
 function spellInfo(id, lv = 0) {
   const S = SPELLS[id];
   const cd = g ? spellCd(g, id, lv) : S.cd;
-  return `<b style="color:${CLASSES[S.cls].color}">${S.name}${lv ? '+' : ''}</b>${S.desc}<br><span class="k">Cooldown ${cd} turns. Fires in the direction you step onto it.${lv ? ' Empowered: +1 power, -1 cooldown.' : ''}</span>`;
+  return `<b style="color:${CLASSES[S.cls].color}">${S.name}${lv ? '+' : ''}</b>${S.desc}<br><span class="k">Tile recharge ${cd} · ${['', 'rare', 'common', 'very common'][spellFreq(id)]} on the floor. Fires in the direction you step onto it.${lv ? ' Empowered: +1 power, -1 recharge.' : ''}</span>`;
 }
 
 function showInfo(html) { $('#info').innerHTML = html; }
@@ -329,7 +329,7 @@ function describe(t) {
   if (!g) return;
   if (!t) {
     const hints = [
-      'Step onto a glowing spell to cast it <b style="display:inline;font-size:inherit">in the direction you moved</b>.',
+      'Every step casts the tile you step onto, <em>in the direction you moved</em>. Spent tiles are silent steps.',
       'Red squares will be attacked on the enemy turn. Numbers = several attackers.',
       'Hover/tap an enemy to see its reach. Orange tiles = telegraphed boss attacks.',
       `Clear the floor within ${g.par} turns for a Swift bonus (+1 Ember, +1 draft choice). After that, the Dark spawns shades.`,
@@ -350,10 +350,12 @@ function describe(t) {
     if (u.team === 'enemy') parts.push(`<b>${D.name} ${u.hp}/${u.maxHp}</b>${D.desc}<br><span class="k">Attacks ${PATTERN_TEXT[D.pattern] || 'special'} for ${D.dmg}.${st.length ? ' Status: ' + st.join(', ') + '.' : ''}</span>${u.intent ? '<br><span class="warn">Preparing a big attack on the orange squares!</span>' : ''}`);
     else parts.push(`<b>${D.name} (ally)</b>${D.desc}<br><span class="k">HP ${u.hp}${u.life ? `, ${u.life} turns left` : ''}</span>`);
   }
-  const b = g.board.find((v) => v.x === x && v.y === y);
-  if (b) parts.push(spellInfo(g.hero.deck[b.slot].id, g.hero.deck[b.slot].lv));
-  const r = g.recharge.find((v) => v.x === x && v.y === y);
-  if (r) parts.push(`<b>${SPELLS[g.hero.deck[r.slot].id].name} (recharging)</b>Returns here in ${r.t} turn${r.t > 1 ? 's' : ''}.`);
+  const cl = g.cells[y * g.map.w + x];
+  if (cl && g.hero.deck[cl.slot]) {
+    const d = g.hero.deck[cl.slot];
+    if (cl.cd > 0) parts.push(`<b>${SPELLS[d.id].name} (recharging)</b>Ready again in ${cl.cd} turn${cl.cd > 1 ? 's' : ''}. Walking here casts nothing.`);
+    else parts.push(spellInfo(d.id, d.lv));
+  }
   const tt = tile(g, x, y), k = key(x, y);
   if (tt === T.PIT) parts.push('<b>Pit</b>Impassable. Knock enemies in to kill them instantly.');
   if (tt === T.SPIKES) parts.push(`<b>Spikes</b>Alternate every turn. ${spikesUp(g, x, y, g.turn + 1) ? '<span class="warn">Up at the end of this turn: 1 damage.</span>' : 'Down at the end of this turn: safe.'}`);
@@ -455,7 +457,7 @@ function draftModal() {
   const h = g.hero;
   modal(`<h2>Floor ${g.floor} cleared</h2>
     <p>${['+1 ✦ cleared', d.swift && '+1 ✦ SWIFT (extra draft option)', g.lastFlawless && '+1 ✦ FLAWLESS', g.isBoss && '+3 ✦ BOSS'].filter(Boolean).map((t) => `<span class="ember" style="margin:0 6px">${t.replace('✦ ', '')}</span>`).join('')}</p>
-    <p>Add a spell to your deck${h.deck.length >= h.slots ? ' (replacing one)' : ''}, or empower one you have. Then heal ${healBetween(g)}.</p>
+    <p>Add a spell to your deck${h.deck.length >= h.slots ? ' (replacing one)' : ''}, or empower one you have. More spells = more variety on the floor, but your best ones get rarer. Then heal ${healBetween(g)}.</p>
     <div class="cards" id="m-cards"></div><div id="m-replace"></div>
     <div class="row-btns"><button class="btn ghost" id="m-skip">Skip (+1 HP)</button>${h.rerolls ? `<button class="btn" id="m-reroll">Reroll (${h.rerolls})</button>` : ''}</div>`);
   const cards = $('#m-cards');
@@ -569,9 +571,9 @@ R.speed = store.get('mc_speed') || 1;
 function helpModal() {
   modal(`<h2>How to play</h2><ul class="help">
     <li><b>Move</b> one square with <kbd>Arrows</kbd>/<kbd>WASD</kbd>, swipe, or tap a neighbouring square. <kbd>Space</kbd> waits.</li>
-    <li><b>Your deck lies on the floor.</b> Step onto a glowing spell to cast it — <b>in the direction you stepped</b>. Approach from the right side!</li>
-    <li>A cast spell vanishes and <b>recharges</b>; its ghost shows where it will reappear and in how many turns.</li>
-    <li>Walk into an enemy to <b>bump-attack</b> it.</li>
+    <li><b>The whole floor is your deck.</b> Every tile holds one of your spells (coloured frame = which deck slot). <b>Each step casts the tile you step onto, in the direction you stepped.</b></li>
+    <li>A used tile <b>recharges in place</b> (faded icon + countdown). Spent tiles are safe, silent steps.</li>
+    <li>There is <b>no melee</b> — you cannot walk into enemies. Every kill is a spell, so plan your path and your approach angle.</li>
     <li><b>Red squares</b> are threatened: enemies attack if you end your move there, otherwise they move. Like chess pieces, each enemy has its own reach — hover/tap it to see. Orange squares are telegraphed boss attacks.</li>
     <li>Clear every enemy to finish the floor, then draft new spells. Be quick: after the <b>par</b> turn count, the Dark spawns shades.</li>
     <li>Earn <span class="ember">Embers</span> to unlock spells, relics and blessings in the Sanctum. Achievements unlock new heroes.</li></ul>

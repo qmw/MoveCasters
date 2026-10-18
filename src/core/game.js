@@ -2,14 +2,14 @@
 import { T, DIRS, CLASSES, RELICS, TOTAL_FLOORS, FLOORS_PER_BIOME } from './data.js';
 import { rnd, rint, pick, shuffle, hashSeed } from './rng.js';
 import {
-  key, tile, standable, unitAt, enemies, allies, emit, damageUnit, hurtHero, healHero, spikesUp, manhattan,
-  randomFree, makeUnit, ghostAt, spellAt, occupied,
+  key, tile, setTile, standable, unitAt, enemies, allies, emit, damageUnit, hurtHero, healHero, spikesUp, manhattan,
+  randomFree, makeUnit, occupied, cellAt, cellReady,
 } from './engine.js';
-import { SPELLS, spellsOf } from './spells.js';
-import { enemyTurn, allyTurn, scheduleRecharge } from './ai.js';
+import { SPELLS, spellsOf, spellCd } from './spells.js';
+import { enemyTurn, allyTurn } from './ai.js';
 import { buildFloor, biomeFor } from './gen.js';
 
-export const VERSION = 1;
+export const VERSION = 2;
 
 // meta: { blessings: {id:true}, grimoire: {spellId:true}, relics: {id:true}, frozen: bool }
 export function newRun({ cls = 'knight', seed = Date.now(), depth = 0, meta = {}, daily = false } = {}) {
@@ -21,8 +21,8 @@ export function newRun({ cls = 'knight', seed = Date.now(), depth = 0, meta = {}
     meta: { blessings: { ...bl }, grimoire: { ...(meta.grimoire || {}) }, relics: { ...(meta.relics || {}) }, frozen: !!meta.frozen },
     floor: 1, path: null, phase: 'play', events: [], nextId: 1, turn: 0,
     hero: {
-      x: 0, y: 0, hp: maxHp, maxHp, block: 0, root: 0, invis: 0, riposte: 0, valor: 0, lich: 0, aim: 0,
-      deck: C.starters.slice(0, depth >= 9 ? 3 : 4).map((id) => ({ id, lv: 0 })), slots: 5, relics: [],
+      x: 0, y: 0, hp: maxHp, maxHp, block: 0, root: 0, invis: 0, riposte: 0, lich: 0, aim: 0,
+      deck: C.starters.slice(0, depth >= 9 ? 3 : 4).map((id) => ({ id, lv: 0 })), slots: 6, relics: [],
       rerolls: bl.reroll ? 1 : 0,
     },
     stats: { kills: 0, killsByType: {}, bossKills: [], dmgTaken: 0, spellsCast: 0, swift: 0, perfectFloors: 0,
@@ -36,13 +36,13 @@ export function newRun({ cls = 'knight', seed = Date.now(), depth = 0, meta = {}
 export const healBetween = (g) => Math.max(0, 1 + (g.meta.blessings.second_wind ? 1 : 0) - (g.depth >= 4 ? 1 : 0));
 
 // ---- hero ---------------------------------------------------------------------
-function castFromBoard(g, b, dx, dy, depthN) {
-  g.board = g.board.filter((v) => v !== b);
-  const d = g.hero.deck[b.slot];
+function castCell(g, cell, dx, dy, depthN) {
+  const d = g.hero.deck[cell.slot];
   if (!d) return;
   const S = SPELLS[d.id];
   const h = g.hero;
-  let P = d.lv + (h.relics.includes('glass_lens') ? 1 : 0);
+  cell.cd = spellCd(g, d.id, d.lv) + 1; // +1: the upkeep of this same turn ticks it once
+  let P = d.lv + (h.relics.includes('glass_lens') ? 1 : 0) + (h.lich > 0 ? 1 : 0);
   if (h.aim) { P += 1; h.aim = 0; }
   g.stats.spellsCast++;
   g.floorCasts = (g.floorCasts || 0) + 1;
@@ -51,7 +51,6 @@ function castFromBoard(g, b, dx, dy, depthN) {
   g.echoUsed = true;
   const c = { dx, dy, P, lv: d.lv, moveHero: (x, y, mdx, mdy) => enterTile(g, x, y, mdx, mdy, depthN + 1, true) };
   for (let i = 0; i < times && g.phase === 'play'; i++) S.cast(g, c);
-  scheduleRecharge(g, b.slot);
 }
 
 function enterTile(g, x, y, dx, dy, depthN = 0, dash = false) {
@@ -68,22 +67,12 @@ function enterTile(g, x, y, dx, dy, depthN = 0, dash = false) {
     healHero(g, 1);
   }
   if (g.phase !== 'play') return;
-  const b = spellAt(g, x, y);
-  if (b && depthN < 5) castFromBoard(g, b, dx, dy, depthN);
+  if (cellReady(g, x, y) && (depthN < 3 || (tile(g, x, y) === T.ICE && depthN < 30))) castCell(g, cellAt(g, x, y), dx, dy, depthN);
   // sliding on ice: keep going while we are on ice and nothing moved us
   if (g.phase === 'play' && h.x === x && h.y === y && tile(g, x, y) === T.ICE && depthN < 30) {
     const nx = x + dx, ny = y + dy;
     if (standable(g, nx, ny) && !occupied(g, nx, ny)) enterTile(g, nx, ny, dx, dy, depthN + 1, true);
   }
-}
-
-export function bumpDamage(g, u) {
-  const h = g.hero;
-  let d = CLASSES[g.cls].bump;
-  if (h.valor > 0) d += 2;
-  if (h.lich > 0) d = Math.max(d, 3);
-  if (g.cls === 'shadow' && (u.stun > 0 || u.root > 0)) d = Math.max(d, 3);
-  return d;
 }
 
 // Returns false if the action was illegal (no turn spent).
@@ -100,9 +89,7 @@ export function act(g, action, opts = {}) {
       h.root--;
       emit(g, { t: 'text', x: h.x, y: h.y, s: 'STUCK', c: '#7dff6b' });
     } else if (u && u.team === 'enemy') {
-      emit(g, { t: 'herolunge', to: [tx, ty] });
-      damageUnit(g, u, bumpDamage(g, u), h, 'bump');
-      if (h.lich > 0) healHero(g, 1);
+      return false; // no melee: all damage comes from spells
     } else if (u) {
       // swap with ally
       emit(g, { t: 'move', id: u.id, from: [tx, ty], to: [h.x, h.y] });
@@ -158,21 +145,15 @@ function upkeep(g) {
   if (tile(g, h.x, h.y) === T.SPIKES && spikesUp(g, h.x, h.y) && !h.relics.includes('spiked_boots')) hurtHero(g, 1, null, 'spikes');
   for (const u of g.units.slice()) if (tile(g, u.x, u.y) === T.SPIKES && spikesUp(g, u.x, u.y)) damageUnit(g, u, 1 + (h.relics.includes('spiked_boots') ? 1 : 0), null, 'spikes');
   for (const m of ['slime', 'wall']) for (const k of Object.keys(g.fx[m])) if (--g.fx[m][k] <= 0) delete g.fx[m][k];
-  if (h.invis > 0) h.invis--;
-  if (h.valor > 0) h.valor--;
-  if (h.lich > 0) h.lich--;
-  // spells recharge
-  for (const r of g.recharge.slice()) {
-    r.t--;
-    if (r.t > 0) continue;
-    if (!standable(g, r.x, r.y) || tile(g, r.x, r.y) !== T.FLOOR && tile(g, r.x, r.y) !== T.ICE) {
-      const p = randomFree(g, { avoidHero: 2 }); if (p) { r.x = p[0]; r.y = p[1]; }
-    }
-    if (h.x === r.x && h.y === r.y) { r.t = 0; continue; }
-    g.recharge = g.recharge.filter((v) => v !== r);
-    g.board.push({ slot: r.slot, x: r.x, y: r.y });
-    emit(g, { t: 'spellback', x: r.x, y: r.y });
+  for (const k of Object.keys(g.fx.pit)) {
+    if (--g.fx.pit[k].t > 0) continue;
+    const [x, y] = k.split(',').map(Number);
+    if (!unitAt(g, x, y)) { setTile(g, x, y, g.fx.pit[k].was); delete g.fx.pit[k]; }
   }
+  if (h.invis > 0) h.invis--;
+  if (h.lich > 0) h.lich--;
+  // spell tiles recharge in place
+  for (const c of g.cells) if (c && c.cd > 0) c.cd--;
   // the Dark
   if (g.floorTurns >= g.par) {
     if (g.doomMark) {
@@ -182,7 +163,7 @@ function upkeep(g) {
     }
     const every = g.depth >= 8 ? 3 : 4;
     if ((g.floorTurns - g.par) % every === 0) {
-      const p = randomFree(g, { avoidHero: 3, noSpells: false });
+      const p = randomFree(g, { avoidHero: 3 });
       if (p) g.doomMark = p;
     }
   }

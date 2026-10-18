@@ -1,6 +1,7 @@
 // Fuzz: random play with random decks drawn from every spell, to catch exceptions & invariants.
 import { newRun, act, chooseDraft, chooseRelic, choosePath } from '../src/core/game.js';
 import { SPELLS } from '../src/core/spells.js';
+import { layCells } from '../src/core/gen.js';
 import { CLASS_ORDER } from '../src/core/data.js';
 const ids = Object.keys(SPELLS);
 const acts = ['up', 'down', 'left', 'right', 'wait'];
@@ -12,8 +13,7 @@ for (let s = 0; s < N; s++) {
   g.quiet = s % 2 === 0;
   g.hero.deck = Array.from({ length: 5 }, (_, i) => ({ id: ids[(s * 5 + i * 13) % ids.length], lv: i % 2 }));
   g.hero.maxHp = g.hero.hp = 60;
-  g.board.forEach((b, i) => { b.slot = i; });
-  g.recharge.push({ slot: 4, x: g.hero.x, y: g.hero.y, t: 1 });
+  layCells(g);
   try {
     for (let i = 0; i < 4000; i++) {
       if (g.phase === 'play') { act(g, acts[Math.floor(Math.random() * 5)]); turns++; }
@@ -27,8 +27,8 @@ for (let s = 0; s < N; s++) {
       for (const u of g.units) { const k = u.x + ',' + u.y; if (pos.has(k)) throw new Error('stacked units ' + u.type + ' at ' + k); pos.add(k); }
       if (pos.has(g.hero.x + ',' + g.hero.y)) throw new Error('unit on hero');
       if (g.map.t[g.hero.y * g.map.w + g.hero.x] === 1) throw new Error('hero in wall');
-      const slots = [...g.board, ...g.recharge].map((b) => b.slot).sort((a, b) => a - b).join();
-      if (slots !== g.hero.deck.map((_, i) => i).join() && g.phase === 'play') throw new Error('deck slots mismatch ' + slots);
+      if (g.phase === 'play' && g.cells.some((c, i) => !c !== (g.map.t[i] === 1))) throw new Error('cell/wall mismatch');
+      if (g.phase === 'play' && g.cells.some((c) => c && !g.hero.deck[c.slot])) throw new Error('cell slot out of deck');
     }
   } catch (e) {
     errors++;

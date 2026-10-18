@@ -6,6 +6,7 @@ import { key, spikesUp, tile } from '../core/engine.js';
 import { sprite, spellIcon, drawFit } from './sprites.js';
 import { sfx } from './audio.js';
 
+export const SLOT_COLORS = ['#ff7a5c', '#ffd25a', '#7ee06a', '#5ac8ff', '#c58cff', '#ff8fd0', '#ffffff'];
 const BIOME_TINT = { crypt: null, swamp: '#3d8a3a', frozen: '#4a8ad8', warrens: '#a8743a', inferno: '#c0301c' };
 const tintCache = new Map();
 function tinted(img, color) {
@@ -110,7 +111,6 @@ export class Renderer {
       case 'heromove': V.hero.x = e.to[0]; V.hero.y = e.to[1]; sfx('step'); return e.dash ? 55 : 85;
       case 'move': { const u = U(e.id); if (u) { u.x = e.to[0]; u.y = e.to[1]; } return e.push ? 70 : 75; }
       case 'lunge': { const u = U(e.id); if (u) u.lunge = { to: e.to, t0: now }; sfx('swing'); return 110; }
-      case 'herolunge': V.hero.lunge = { to: e.to, t0: now }; sfx('swing'); return 70;
       case 'hit': { const u = U(e.id); if (u) { u.hp -= e.n; u.flash = 1; } this.float(e.x, e.y, '-' + e.n, '#fff'); sfx('hit'); return 70; }
       case 'hurt': V.hero.flash = 1; this.shake = 7; this.float(e.x, e.y, '-' + e.n, '#ff4d4d', true); sfx('hurt'); return 160;
       case 'heal': this.float(e.x, e.y, '+' + e.n, '#7dff6b'); sfx('heal'); return 60;
@@ -211,6 +211,34 @@ export class Renderer {
       ctx.fillStyle = 'rgba(255,90,30,0.18)'; ctx.fillRect(X(x), Y(y), ts, ts);
     }
 
+    // the spell floor: every tile holds a deck spell
+    const pulse = 0.5 + 0.5 * Math.sin(now / 260);
+    const hx0 = g.hero.x, hy0 = g.hero.y;
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const cell = g.cells[y * w + x];
+        if (!cell || tile(g, x, y) === T.PIT || g.fx.wall[key(x, y)]) continue;
+        const d = g.hero.deck[cell.slot]; if (!d) continue;
+        const col = SLOT_COLORS[cell.slot % SLOT_COLORS.length];
+        const icon = spellIcon(d.id, SPELLS[d.id].icon, now);
+        const isHero = x === hx0 && y === hy0;
+        if (cell.cd > 0) {
+          ctx.globalAlpha = 0.22;
+          drawFit(ctx, icon, X(x) + ts * 0.22, Y(y) + ts * 0.22, ts * 0.56, ts * 0.56);
+          ctx.globalAlpha = 1;
+          if (!isHero) this.label(ctx, X(x) + ts / 2, Y(y) + ts * 0.62, cell.cd + '', '#bfb2d2', 'center', 11);
+          continue;
+        }
+        ctx.strokeStyle = col; ctx.globalAlpha = 0.55 + 0.2 * pulse; ctx.lineWidth = Math.max(1.5, ts / 22);
+        const m = ts * 0.08;
+        ctx.strokeRect(X(x) + m, Y(y) + m, ts - 2 * m, ts - 2 * m);
+        ctx.fillStyle = col; ctx.globalAlpha = 0.1; ctx.fillRect(X(x) + m, Y(y) + m, ts - 2 * m, ts - 2 * m);
+        ctx.globalAlpha = 1;
+        drawFit(ctx, icon, X(x) + ts * 0.17, Y(y) + ts * 0.15, ts * 0.66, ts * 0.66);
+        if (d.lv) this.label(ctx, X(x) + ts - 5, Y(y) + 12, '+', '#ffcf5a', 'right', 12);
+        if (!this.busy && g.phase === 'play' && Math.abs(x - hx0) + Math.abs(y - hy0) === 1) this.arrow(ctx, X(x) + ts / 2, Y(y) + ts / 2, x - hx0, y - hy0, col);
+      }
+
     // threats & intents
     const showThreat = this.showDanger && !this.busy && g.phase === 'play';
     if (showThreat) {
@@ -218,7 +246,7 @@ export class Renderer {
       for (const [k, n] of Object.entries(dm)) {
         const [x, y] = k.split(',').map(Number);
         if (tile(g, x, y) === T.WALL) continue;
-        ctx.fillStyle = `rgba(255,40,40,${0.16 + 0.1 * Math.min(n, 3)})`;
+        ctx.fillStyle = `rgba(255,30,30,${0.22 + 0.1 * Math.min(n, 3)})`;
         ctx.fillRect(X(x) + 1, Y(y) + 1, ts - 2, ts - 2);
         ctx.strokeStyle = 'rgba(255,80,80,0.55)'; ctx.lineWidth = 1;
         ctx.strokeRect(X(x) + 2.5, Y(y) + 2.5, ts - 5, ts - 5);
@@ -238,31 +266,6 @@ export class Renderer {
         ctx.strokeStyle = `rgba(180,90,255,${0.5 + 0.5 * Math.sin(now / 120)})`; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(X(x) + ts / 2, Y(y) + ts / 2, ts * 0.35, 0, 7); ctx.stroke();
       }
-    }
-
-    // spells on board + recharge ghosts
-    const pulse = 0.5 + 0.5 * Math.sin(now / 260);
-    for (const r of g.recharge) {
-      const d = g.hero.deck[r.slot]; if (!d) continue;
-      ctx.globalAlpha = 0.28;
-      drawFit(ctx, spellIcon(d.id, SPELLS[d.id].icon, now), X(r.x) + ts * 0.2, Y(r.y) + ts * 0.2, ts * 0.6, ts * 0.6);
-      ctx.globalAlpha = 1;
-      this.label(ctx, X(r.x) + ts - 3, Y(r.y) + ts - 4, r.t + '', '#cfc3e0', 'right', 11);
-    }
-    for (const b of g.board) {
-      const d = g.hero.deck[b.slot]; if (!d) continue;
-      const S = SPELLS[d.id], col = CLASSES[S.cls].color;
-      const cx = X(b.x) + ts / 2, cy = Y(b.y) + ts / 2;
-      ctx.fillStyle = col; ctx.globalAlpha = 0.16 + 0.12 * pulse;
-      ctx.beginPath(); ctx.arc(cx, cy, ts * 0.46, 0, 7); ctx.fill();
-      ctx.globalAlpha = 0.9; ctx.strokeStyle = col; ctx.lineWidth = Math.max(1.5, ts / 24);
-      ctx.beginPath(); ctx.arc(cx, cy, ts * 0.4, now / 900, now / 900 + 5.2); ctx.stroke();
-      ctx.globalAlpha = 1;
-      drawFit(ctx, spellIcon(d.id, S.icon, now), X(b.x) + ts * 0.18, Y(b.y) + ts * 0.14, ts * 0.64, ts * 0.64);
-      if (d.lv) this.label(ctx, X(b.x) + ts - 4, Y(b.y) + 11, '+', '#ffcf5a', 'right', 12);
-      // cast-direction arrow when adjacent to hero
-      const hx = g.hero.x, hy = g.hero.y;
-      if (!this.busy && Math.abs(b.x - hx) + Math.abs(b.y - hy) === 1) this.arrow(ctx, cx, cy, b.x - hx, b.y - hy, col);
     }
 
     // hover highlight: enemy pattern

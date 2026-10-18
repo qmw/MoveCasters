@@ -2,10 +2,9 @@
 import { ENEMIES, ORTH, DIAG, KING, KNIGHT, T } from './data.js';
 import {
   key, inb, tile, setTile, isWall, unitAt, heroAt, occupied, enemies, allies, standable, enemySafe, manhattan,
-  damageUnit, hurtHero, emit, makeUnit, randomFree, freeTiles, ray, spellAt, trapCheck, firstEnemyInRay, killUnit,
+  damageUnit, hurtHero, emit, makeUnit, randomFree, freeTiles, ray, spoilCell, trapCheck, firstEnemyInRay, killUnit,
 } from './engine.js';
 import { rint } from './rng.js';
-import { SPELLS, spellCd } from './spells.js';
 
 const STEPS = { orth: ORTH, diag: DIAG, king: KING, knight: KNIGHT, phase: KING };
 
@@ -125,22 +124,8 @@ function moveUnitTo(g, u, nx, ny) {
   emit(g, { t: 'move', id: u.id, from: [fx, fy], to: [nx, ny] });
   if (def.slime) g.fx.slime[key(fx, fy)] = 6;
   if (def.icy && tile(g, fx, fy) === T.FLOOR) setTile(g, fx, fy, T.ICE);
-  if (def.eater) {
-    const b = spellAt(g, nx, ny);
-    if (b) {
-      g.board = g.board.filter((v) => v !== b);
-      emit(g, { t: 'text', x: nx, y: ny, s: 'CHOMP', c: '#8fd16a' });
-      scheduleRecharge(g, b.slot, 3);
-    }
-  }
+  if (def.eater) spoilCell(g, nx, ny, 4);
   trapCheck(g, u);
-}
-
-export function scheduleRecharge(g, slot, extra = 0) {
-  const d = g.hero.deck[slot];
-  if (!d) return;
-  const pos = randomFree(g, { avoidHero: 2 }) || [g.hero.x, g.hero.y];
-  g.recharge.push({ slot, x: pos[0], y: pos[1], t: spellCd(g, d.id, d.lv) + extra });
 }
 
 // What should this enemy chase? Decoys pull aggro; invisible heroes are lost.
@@ -171,9 +156,6 @@ function moveEnemy(g, u) {
   const speed = def.speed || 1;
   for (let s = 0; s < speed; s++) {
     let step = null;
-    if (def.eater && g.board.length) {
-      step = pathStep(g, u, g.board.filter((b) => !occupied(g, b.x, b.y)).map((b) => [b.x, b.y]), steps);
-    }
     const target = targetOf(g, u);
     if (!step && def.healer && target) {
       // keep ~3 squares from the hero, near allies
@@ -227,7 +209,7 @@ function shamanAct(g, u) {
 }
 
 function summon(g, type, n, near) {
-  const spots = freeTiles(g, { avoidHero: 2, noSpells: false })
+  const spots = freeTiles(g, { avoidHero: 2 })
     .sort((a, b) => manhattan(a[0], a[1], near.x, near.y) - manhattan(b[0], b[1], near.x, near.y));
   for (let i = 0; i < n && i < spots.length; i++) {
     const u = makeUnit(g, type, spots[i][0], spots[i][1]);
