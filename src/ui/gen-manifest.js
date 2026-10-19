@@ -71,5 +71,18 @@ export const GEN = {
  "spell_grave_grasp": "assets/gen/spell_grave_grasp.png",
  "spell_dark_pact": "assets/gen/spell_dark_pact.png",
  "spell_plague": "assets/gen/spell_plague.png",
- "spell_lich_form": "assets/gen/spell_lich_form.png"
+ "spell_lich_form": "assets/gen/spell_lich_form.png",
+ "relic_iron_heart": "assets/gen/relic_iron_heart.png",
+ "relic_echo_stone": "assets/gen/relic_echo_stone.png",
+ "relic_hourglass": "assets/gen/relic_hourglass.png",
+ "relic_vampire_fang": "assets/gen/relic_vampire_fang.png",
+ "relic_thorn_mail": "assets/gen/relic_thorn_mail.png",
+ "relic_extra_pocket": "assets/gen/relic_extra_pocket.png",
+ "relic_glass_lens": "assets/gen/relic_glass_lens.png",
+ "relic_swift_boots": "assets/gen/relic_swift_boots.png",
+ "relic_lucky_coin": "assets/gen/relic_lucky_coin.png",
+ "relic_ember_heart": "assets/gen/relic_ember_heart.png",
+ "relic_spiked_boots": "assets/gen/relic_spiked_boots.png",
+ "relic_phylactery": "assets/gen/relic_phylactery.png",
+ "title": "assets/gen/title.png"
 };

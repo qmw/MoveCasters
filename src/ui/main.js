@@ -613,7 +613,7 @@ function renderSanctum() {
     if (img) nm.append(iconCanvas(img, 28));
     nm.append(document.createTextNode(name));
     s.append(nm, el('div', 'ds', desc + (note ? `<br><span class="k">${note}</span>` : '')));
-    const b = el('button', 'btn', owned ? 'OWNED' : `Unlock ✦ ${cost}`);
+    const b = el('button', 'btn', owned ? 'OWNED' : cost == null ? 'Locked' : `Unlock ✦ ${cost}`);
     b.disabled = owned || meta.embers < cost || cost == null;
     b.onclick = () => { if (onBuy()) { sfx('clear'); saveMeta(); renderSanctum(); } };
     s.append(b);
